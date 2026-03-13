@@ -1,0 +1,316 @@
+.file-search-container {
+  padding: 16px;
+  height: 100vh;
+  overflow: auto;
+}
+
+.file-table :deep(.v-data-table__wrapper) {
+  max-height: calc(100vh - 350px);
+  overflow: auto;
+}
+
+.file-table :deep(.v-data-table__td) {
+  text-align: left !important;
+}
+
+.file-table :deep(.v-data-table-header__content) {
+  text-align: left !important;
+  justify-content: flex-start !important;
+}
+
+/* v-data-table hover 样式 - 与 content-result-item 保持一致 */
+.file-table :deep(.v-data-table__tr:hover) {
+  background-color: rgba(var(--v-theme-primary), 0.05) !important;
+}
+
+// 搜索历史栏
+.search-history-bar {
+  display: flex;
+  align-items: center;
+  padding: 4px 0;
+  min-height: 32px;
+}
+
+.history-chips {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.history-label {
+  font-size: 12px;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+  margin-right: 4px;
+}
+
+.history-chip {
+  cursor: pointer;
+  font-size: 12px !important;
+
+  &:hover {
+    background: rgba(var(--v-theme-primary), 0.1);
+  }
+}
+
+.file-name-cell {
+  cursor: pointer;
+}
+
+.file-name-cell:hover .file-name {
+  color: rgb(var(--v-theme-primary));
+  text-decoration: underline;
+}
+
+.file-path {
+  cursor: pointer;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+.file-path:hover {
+  color: rgb(var(--v-theme-primary));
+  text-decoration: underline;
+}
+
+.content-result-item {
+  cursor: pointer;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+}
+
+.content-result-item:hover {
+  background-color: rgba(var(--v-theme-primary), 0.05);
+}
+
+.content-result-item .file-name {
+  font-weight: 500;
+}
+
+.content-result-item .file-path {
+  font-size: 0.875rem;
+  color: rgba(var(--v-theme-on-surface), 0.6);
+}
+
+.content-result-item .content-preview {
+  font-size: 0.875rem;
+  color: rgba(var(--v-theme-on-surface), 0.5);
+  max-height: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+/**
+ * 右键菜单样式
+ */
+.context-menu-list {
+  min-width: 180px;
+  padding: 4px 0;
+}
+
+.context-menu-item {
+  cursor: pointer;
+  min-height: 36px;
+}
+
+.context-menu-item:hover {
+  background-color: rgba(var(--v-theme-primary), 0.08);
+}
+
+/**
+ * 紧凑布局样式
+ */
+:deep(.v-alert) {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+  margin-bottom: 8px !important;
+}
+
+:deep(.v-alert__content) {
+  line-height: 1.4 !important;
+}
+
+:deep(.v-alert__prepend) {
+  margin-right: 8px !important;
+}
+
+:deep(.v-row) {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+:deep(.v-col) {
+  padding-top: 4px !important;
+  padding-bottom: 4px !important;
+}
+
+:deep(.v-input__details) {
+  min-height: 16px !important;
+  padding-top: 2px !important;
+}
+
+/**
+ * 紧凑文字样式
+ */
+.compact-alert :deep(.v-alert__content) {
+  font-size: 0.8125rem;
+}
+
+.compact-alert {
+  margin-bottom: 0 !important;
+}
+
+.compact-text {
+  line-height: 1.4;
+}
+
+.text-item {
+  margin-left: 8px;
+  white-space: nowrap;
+}
+
+/**
+ * 信息行布局
+ */
+.info-row {
+  margin: 0 -4px !important;
+}
+
+.info-row > .v-col {
+  padding: 4px !important;
+}
+
+.info-row .compact-alert {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+}
+
+/**
+ * 搜索结果布局 - 纯 flex 布局
+ */
+.flex-result-container {
+  display: flex;
+  flex-direction: row;
+  gap: 16px;
+  margin-top: 16px;
+}
+
+.flex-list-area {
+  flex: 2;
+  min-width: 0;
+  max-height: calc(100vh - 240px);
+  overflow: auto;
+}
+
+/* 文件内容搜索结果列表 */
+.content-search-list {
+  max-height: calc(100vh - 240px);
+  overflow: auto;
+}
+
+.flex-preview-area {
+  flex: 1;
+  min-width: 300px;
+  max-width: 400px;
+}
+
+/**
+ * 固定预览面板样式
+ */
+.preview-panel-fixed {
+  background: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-radius: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  height: calc(100vh - 240px);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.preview-panel-fixed .preview-title {
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 13px;
+  border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  background: rgba(var(--v-theme-surface-variant), 0.5);
+  color: rgb(var(--v-theme-on-surface));
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-family: 'Consolas', 'Monaco', monospace;
+  flex-shrink: 0;
+}
+
+.preview-panel-fixed .preview-content {
+  padding: 0;
+  font-size: 12px;
+  line-height: 1.6;
+  flex: 1;
+  overflow: auto;
+  background: rgb(var(--v-theme-surface));
+}
+
+/* 代码预览样式 - 编辑器风格 */
+.preview-content .code-preview {
+  background: rgb(var(--v-theme-surface));
+  color: rgb(var(--v-theme-on-surface));
+  font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  padding: 16px;
+  padding: 12px;
+  margin: 0;
+  white-space: pre;
+  overflow-x: auto;
+  tab-size: 2;
+}
+
+/* 语法高亮 - 适配主题 */
+.preview-content .code-preview .keyword { color: rgb(var(--v-theme-primary)); font-weight: 600; }
+.preview-content .code-preview .string { color: rgb(var(--v-theme-success)); }
+.preview-content .code-preview .comment { color: rgba(var(--v-theme-on-surface), 0.5); font-style: italic; }
+.preview-content .code-preview .number { color: rgb(var(--v-theme-info)); }
+.preview-content .code-preview .function { color: rgb(var(--v-theme-warning)); }
+.preview-content .code-preview .tag { color: rgb(var(--v-theme-primary)); }
+.preview-content .code-preview .attr { color: rgb(var(--v-theme-error)); }
+
+/* 行号 */
+.preview-content .code-preview .line {
+  display: flex;
+}
+
+.preview-content .code-preview .line-number {
+  color: rgba(var(--v-theme-on-surface), 0.4);
+  text-align: right;
+  padding-right: 16px;
+  min-width: 36px;
+  user-select: none;
+  font-size: 12px;
+}
+
+.preview-content .code-preview .line-content {
+  flex: 1;
+}
+
+.preview-content pre {
+  background: rgb(var(--v-theme-surface));
+  padding: 16px;
+  border-radius: 0;
+  overflow-x: auto;
+  margin: 0;
+  color: rgb(var(--v-theme-on-surface));
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.preview-content img,
+.preview-content video {
+  display: block;
+  margin: 0 auto;
+}

@@ -1,0 +1,52 @@
+.qr-code-generator {
+  padding: 16px;
+  height: 100vh;
+  overflow: auto;
+}
+
+.qr-card {
+  &__title {
+    font-size: 1.1rem;
+    font-weight: 500;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(0, 0, 0, 0.12);
+  }
+
+  &__actions {
+    padding: 12px 16px;
+    gap: 8px;
+  }
+}
+
+.qr-preview {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px;
+  background-color: rgba(var(--v-theme-surface-variant), 0.5);
+  border-radius: 8px;
+  padding: 16px;
+
+  &__container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+  }
+
+  &__image {
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  }
+
+  &__placeholder {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 16px;
+  }
+
+  &__text {
+    color: rgba(var(--v-theme-on-surface), 0.6);
+    font-size: 1rem;
+  }
+}

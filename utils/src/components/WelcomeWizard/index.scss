@@ -1,0 +1,85 @@
+.welcome-wizard {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.wizard-stepper {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.wizard-header {
+  padding: 20px 40px 0;
+  background: transparent;
+}
+
+.wizard-window {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-content {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  text-align: center;
+}
+
+.welcome-icon {
+  animation: bounce 2s ease-in-out infinite;
+}
+
+.success-icon {
+  animation: scaleIn 0.5s ease-out;
+}
+
+.config-form {
+  width: 100%;
+
+  /**
+   * 修复输入框 placeholder 颜色太淡的问题
+   * 增加对比度使其在深色背景下可见
+   */
+  :deep(.v-field__input) {
+    color: rgba(255, 255, 255, 0.9);
+
+    &::placeholder {
+      color: rgba(255, 255, 255, 0.6);
+    }
+  }
+
+  :deep(.v-label) {
+    color: rgba(255, 255, 255, 0.7);
+  }
+}
+
+.step-actions {
+  display: flex;
+  gap: 16px;
+}
+
+@keyframes bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+@keyframes scaleIn {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}

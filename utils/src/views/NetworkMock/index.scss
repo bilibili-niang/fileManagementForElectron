@@ -1,0 +1,122 @@
+.network-mock {
+  padding: 16px;
+  height: 100vh;
+  overflow: auto;
+}
+
+.server-address {
+  display: inline-flex;
+  align-items: center;
+  padding: 8px 16px;
+  background: rgba(var(--v-theme-surface-variant), 0.5);
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+
+  &:hover {
+    background: rgba(var(--v-theme-primary), 0.1);
+    border-color: rgba(var(--v-theme-primary), 0.3);
+
+    .copy-icon {
+      color: rgb(var(--v-theme-primary));
+    }
+  }
+
+  .address-text {
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 14px;
+    font-weight: 500;
+    color: rgb(var(--v-theme-on-surface));
+    letter-spacing: 0.5px;
+  }
+
+  .copy-icon {
+    transition: color 0.2s ease;
+  }
+}
+
+.mock-card {
+  overflow: visible;
+
+  &__title {
+    font-size: 1.1rem;
+    font-weight: 500;
+    padding: 12px 16px;
+    border-bottom: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  }
+}
+
+:deep(.v-card-text) {
+  overflow: visible !important;
+}
+
+:deep(.v-list) {
+  overflow: visible !important;
+}
+
+.route-item {
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.08);
+  border-radius: 4px;
+  margin-bottom: 4px;
+  position: relative;
+
+  &:hover {
+    background-color: rgba(var(--v-theme-primary), 0.05);
+  }
+}
+
+.route-actions {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  display: flex;
+  gap: 8px;
+  z-index: 10;
+}
+
+:deep(.v-list-item) {
+  min-height: 56px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+.route-path {
+  cursor: pointer;
+  color: rgb(var(--v-theme-primary));
+  transition: color 0.2s ease;
+
+  &:hover {
+    color: rgb(var(--v-theme-primary));
+    text-decoration: underline;
+    filter: brightness(1.2);
+  }
+}
+
+.route-response-card {
+  margin-top: 8px;
+  background-color: rgb(var(--v-theme-surface));
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.response-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.response-content {
+  margin: 0;
+  padding: 12px;
+  background-color: rgba(var(--v-theme-surface-variant), 0.5);
+  border: 1px solid rgba(var(--v-theme-on-surface), 0.12);
+  border-radius: 4px;
+  font-size: 12px;
+  max-height: 200px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: rgb(var(--v-theme-on-surface));
+}

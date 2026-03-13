@@ -1,0 +1,54 @@
+/**
+ * Settings 页面样式
+ */
+.settings-container {
+  padding: 16px;
+  height: 100vh;
+  overflow: auto;
+}
+
+.settings-card {
+  margin-bottom: 16px;
+}
+
+.settings-section {
+  margin-bottom: 24px;
+}
+
+.settings-section-title {
+  font-size: 1rem;
+  font-weight: 600;
+  margin-bottom: 16px;
+  color: rgba(var(--v-theme-on-background), var(--v-high-emphasis-opacity));
+}
+
+.settings-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.progress-card {
+  margin-top: 16px;
+}
+
+.config-list {
+  padding: 0;
+}
+
+.config-list-item {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/**
+ * 文件打开方式配置表格样式
+ */
+.file-config-table :deep(.v-data-table__tr) {
+  height: 64px !important;
+}
+
+.file-config-table :deep(.v-data-table__td) {
+  padding-top: 8px !important;
+  padding-bottom: 8px !important;
+}

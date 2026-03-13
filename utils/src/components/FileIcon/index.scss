@@ -1,0 +1,22 @@
+.file-icon-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.custom-file-icon {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+  transition: transform 0.2s ease;
+}
+
+.custom-file-icon:hover {
+  transform: scale(1.1);
+}
+
+.file-ext {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+  padding: 0 2px;
+}

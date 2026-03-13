@@ -1,0 +1,51 @@
+{
+  "name": "super-utils",
+  "version": "1.0.0",
+  "description": "Electron 文件管理工具",
+  "main": "electron/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "server": "cd server && pnpm dev",
+    "server:quiet": "cd server && pnpm dev:quiet",
+    "server:build": "cd server && pnpm build",
+    "server:start": "cd server && pnpm start",
+    "dev:full": "concurrently \"pnpm server\" \"pnpm dev\"",
+    "electron:dev": "concurrently \"pnpm server:quiet\" \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:build": "pnpm server:build && tsc && vite build && electron-builder",
+    "electron:build:installer": "pnpm server:build && tsc && vite build && electron-builder --publish=never",
+    "electron:pack": "pnpm server:build && tsc && vite build && electron-builder --dir"
+  },
+  "dependencies": {
+    "@mdi/font": "^7.4.47",
+    "fast-glob": "^3.3.0",
+    "lodash-es": "^4.17.23",
+    "mammoth": "^1.11.0",
+    "monaco-editor": "^0.55.1",
+    "mysql2": "^3.6.0",
+    "node-cron": "^3.0.0",
+    "pdfjs-dist": "^5.4.624",
+    "pinia": "^2.1.0",
+    "plyr": "^3.8.4",
+    "qrcode": "^1.5.4",
+    "qrcode.vue": "^3.8.0",
+    "typeorm": "^0.3.0",
+    "vue": "^3.4.0",
+    "vue-router": "^4.6.4",
+    "vuetify": "^3.6.0"
+  },
+  "devDependencies": {
+    "@electron/asar": "^4.1.0",
+    "@types/qrcode": "^1.5.6",
+    "@vitejs/plugin-vue": "^5.0.0",
+    "concurrently": "^8.2.0",
+    "electron": "32.0.0",
+    "electron-builder": "^24.9.0",
+    "sass": "1.32.13",
+    "typescript": "^5.3.0",
+    "vite": "^5.0.0",
+    "vite-plugin-monaco-editor": "^1.1.0",
+    "wait-on": "^7.2.0"
+  }
+}

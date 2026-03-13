@@ -1,0 +1,17 @@
+{
+  "mysql": {
+    "host": "localhost",
+    "port": 3306,
+    "username": "root",
+    "password": "123456",
+    "database": "superutils_file_manager"
+  },
+  "indexing": {
+    "excludeC": true,
+    "excludeNodeModules": true,
+    "lastIndexed": "2026-03-09T07:53:02.272Z",
+    "schedule": "0 20 * * *"
+  },
+  "theme": "dark",
+  "activeTab": "category"
+}

@@ -1,0 +1,49 @@
+.file-editor-card {
+  height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.file-editor-card.fullscreen {
+  height: 100vh;
+}
+
+.editor-header {
+  flex-shrink: 0;
+  padding: 2px 16px !important;
+  min-height: auto !important;
+}
+
+.editor-header :deep(.v-card-title) {
+  font-size: 0.95rem;
+  line-height: 1.2;
+  padding: 0 !important;
+}
+
+.editor-header :deep(.v-card-subtitle) {
+  font-size: 0.7rem;
+  line-height: 1;
+  padding: 0 !important;
+  margin: 0 !important;
+}
+
+.editor-content {
+  flex: 1;
+  overflow: hidden;
+  padding: 0;
+}
+
+.monaco-editor-wrapper {
+  height: 100%;
+  width: 100%;
+}
+
+.editor-actions {
+  flex-shrink: 0;
+  padding: 4px 16px !important;
+  min-height: auto !important;
+}
+
+.editor-actions :deep(.v-btn) {
+  margin: 0;
+}
