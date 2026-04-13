@@ -121,6 +121,9 @@ export const configApi = {
    * 健康检查
    */
   async healthCheck(): Promise<{ status: string }> {
-    return request({ path: '/api/health' })
+    return request(
+      { path: '/api/health' },
+      { channel: 'healthCheck' }
+    )
   }
 }

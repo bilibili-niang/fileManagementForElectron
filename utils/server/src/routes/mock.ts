@@ -34,9 +34,11 @@ router.get('/routes', async (req, res) => {
     const routes = await dbService.getMockRoutes();
     res.json({ success: true, routes });
   } catch (error: any) {
+    console.error('Get mock routes error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to get routes'
+      error: error.message || 'Failed to get routes',
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });

@@ -1,14 +1,26 @@
-const { app, BrowserWindow, ipcMain, shell } = require('electron')
+const { app, BrowserWindow, ipcMain, shell, dialog, screen } = require('electron')
 const path = require('path')
 const http = require('http')
 const { spawn } = require('child_process')
 
 let mainWindow = null
 let backendProcess = null
+let store = null
+
+// 初始化 electron-store (动态导入 ES Module)
+async function initStore() {
+  const { default: Store } = await import('electron-store')
+  store = new Store({
+    name: 'window-state',
+    defaults: {
+      windowState: null
+    }
+  })
+}
 
 // API 配置
 const API_HOST = 'localhost'
-const API_PORT = 3000
+let API_PORT = 3000
 
 /**
  * 发送 HTTP 请求到后端服务
@@ -49,11 +61,14 @@ function makeRequest(options, postData = null) {
  * 检查后端服务是否就绪
  * @param {number} timeoutMs 超时时间（毫秒）
  */
-function checkBackendReady(timeoutMs = 30000) {
+function checkBackendReady(port = API_PORT, timeoutMs = 60000) {
   return new Promise((resolve, reject) => {
     const startTime = Date.now()
+    let attemptCount = 0
 
     const check = () => {
+      attemptCount++
+      
       // 检查是否超时
       if (Date.now() - startTime > timeoutMs) {
         reject(new Error('Backend service startup timeout'))
@@ -62,20 +77,40 @@ function checkBackendReady(timeoutMs = 30000) {
 
       const req = http.request({
         hostname: API_HOST,
-        port: API_PORT,
+        port,
         path: '/api/health',
         method: 'GET',
         timeout: 2000
       }, (res) => {
-        if (res.statusCode === 200) {
-          console.log('Backend service is ready')
-          resolve(true)
-        } else {
+        let data = ''
+        res.on('data', (chunk) => {
+          data += chunk
+        })
+        res.on('end', () => {
+          if (res.statusCode !== 200) {
+            setTimeout(check, 500)
+            return
+          }
+
+          try {
+            const json = JSON.parse(data)
+            if (json && json.status === 'ok') {
+              console.log('Backend service is ready')
+              resolve(true)
+              return
+            }
+          } catch (_e) {
+          }
+
           setTimeout(check, 500)
-        }
+        })
       })
 
       req.on('error', () => {
+        // 每10次尝试输出一次日志
+        if (attemptCount % 10 === 0) {
+          console.log(`Waiting for backend... (${attemptCount} attempts)`)
+        }
         setTimeout(check, 500)
       })
 
@@ -116,54 +151,86 @@ function startBackend() {
     console.log('Environment:', isDev ? 'development' : 'production')
     console.log('Server directory:', serverDir)
 
+    // 先检查后端是否已经在运行
+    checkBackendReady(API_PORT, 1500).then(() => {
+      console.log('Backend already running, skip spawn')
+      resolve()
+    }).catch(() => {
+      // 后端未运行，需要启动
+      if (isDev) {
+        // 开发环境使用 tsx 启动
+        const srcPath = path.join(serverDir, 'src/index.ts')
+        if (!fs.existsSync(srcPath)) {
+          reject(new Error(`Backend source not found: ${srcPath}`))
+          return
+        }
+
+        console.log('Command: npx tsx watch src/index.ts')
+        console.log('Server directory:', serverDir)
+        // 使用 pnpm 直接运行 tsx，避免 npx 路径问题
+        backendProcess = spawn('pnpm', ['exec', 'tsx', 'watch', 'src/index.ts'], {
+          cwd: serverDir,
+          stdio: 'pipe',
+          windowsHide: true
+        })
+      } else {
+        // 生产环境使用编译后的文件
+        const distPath = path.join(serverDir, 'index.js')
+        if (!fs.existsSync(distPath)) {
+          reject(new Error(`Backend entry not found: ${distPath}`))
+          return
+        }
+
+        console.log('Command: node index.js')
+        backendProcess = spawn('node', [distPath], {
+          cwd: serverDir,
+          stdio: 'pipe'
+        })
+      }
+
+      // 监听后端输出
+      if (backendProcess.stdout) {
+        backendProcess.stdout.on('data', (data) => {
+          const output = data.toString().trim()
+          console.log('[Backend]', output)
+        })
+      }
+
+      if (backendProcess.stderr) {
+        backendProcess.stderr.on('data', (data) => {
+          console.error('[Backend Error]', data.toString().trim())
+        })
+      }
+
+      backendProcess.on('error', (error) => {
+        console.error('Failed to start backend process:', error)
+        reject(error)
+      })
+
+      backendProcess.on('spawn', () => {
+        console.log('Backend process spawned successfully')
+      })
+
+      backendProcess.on('exit', (code, signal) => {
+        console.log(`Backend process exited with code ${code}, signal: ${signal}`)
+        if (code !== 0 && code !== null) {
+          console.error(`Backend server exited unexpectedly`)
+        }
+      })
+
+      checkBackendReady(API_PORT).then(() => {
+        console.log('Backend server started successfully')
+        resolve()
+      }).catch((error) => {
+        console.error('Backend ready check failed:', error)
+        reject(error)
+      })
+    })
+
     /**
      * 启动后端服务
      * 优先使用已编译的 dist/index.js，如果失败则尝试使用 tsx
      */
-    const distPath = path.join(serverDir, 'index.js')
-
-    if (fs.existsSync(distPath)) {
-      console.log('Command: node index.js')
-      backendProcess = spawn('node', [distPath], {
-        cwd: serverDir,
-        stdio: 'pipe'
-      })
-    } else {
-      console.log('Command: npx tsx src/index.ts')
-      backendProcess = spawn('npx', ['tsx', 'src/index.ts'], {
-        cwd: serverDir,
-        stdio: 'pipe',
-        shell: true
-      })
-    }
-
-    if (backendProcess) {
-      backendProcess.stdout.on('data', (data) => {
-        const output = data.toString().trim()
-        console.log('[Backend]', output)
-      })
-
-      backendProcess.stderr.on('data', (data) => {
-        console.error('[Backend Error]', data.toString().trim())
-      })
-
-      backendProcess.on('error', (error) => {
-        console.error('Failed to start backend:', error)
-        reject(error)
-      })
-
-      backendProcess.on('exit', (code) => {
-        if (code !== 0 && code !== null) {
-          console.error(`Backend server exited with code ${code}`)
-        }
-      })
-
-      // 等待后端服务就绪
-      checkBackendReady().then(() => {
-        console.log('Backend server started successfully')
-        resolve()
-      })
-    }
   })
 }
 
@@ -179,16 +246,28 @@ function stopBackend() {
 }
 
 /**
- * 从后端获取窗口状态
+ * 从本地存储获取窗口状态
+ * 如果没有持久化数据，返回 null
  */
-async function getWindowState() {
+function getWindowState() {
   try {
-    const result = await makeRequest({
-      path: '/api/config/window-state',
-      method: 'GET'
-    })
-    if (result && result.success) {
-      return result.state
+    if (!store) return null
+    const state = store.get('windowState')
+    if (state) {
+      // 验证窗口状态是否在有效屏幕范围内
+      const displays = screen.getAllDisplays()
+      const isValidPosition = displays.some(display => {
+        const { x, y, width, height } = display.bounds
+        // 检查窗口是否在屏幕范围内（允许部分超出）
+        return state.x >= x - state.width + 100 &&
+               state.x < x + width - 100 &&
+               state.y >= y - state.height + 100 &&
+               state.y < y + height - 100
+      })
+      
+      if (isValidPosition) {
+        return state
+      }
     }
   } catch (error) {
     console.error('获取窗口状态失败:', error)
@@ -197,32 +276,47 @@ async function getWindowState() {
 }
 
 /**
- * 保存窗口状态到后端
+ * 保存窗口状态到本地存储
  */
-async function saveWindowState(state) {
+function saveWindowState(state) {
   try {
-    await makeRequest({
-      path: '/api/config/window-state',
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      }
-    }, state)
+    if (!store) return
+    store.set('windowState', state)
   } catch (error) {
     console.error('保存窗口状态失败:', error)
   }
 }
 
 /**
+ * 获取主屏幕的默认窗口尺寸（屏幕尺寸的 80%）
+ */
+function getDefaultWindowSize() {
+  const primaryDisplay = screen.getPrimaryDisplay()
+  const { width, height } = primaryDisplay.workAreaSize
+  
+  // 默认窗口尺寸为屏幕的 80%
+  const defaultWidth = Math.floor(width * 0.8)
+  const defaultHeight = Math.floor(height * 0.8)
+  
+  return {
+    width: defaultWidth,
+    height: defaultHeight
+  }
+}
+
+/**
  * 创建窗口
  */
-async function createWindow() {
+function createWindow() {
   // 获取保存的窗口状态
-  const savedState = await getWindowState()
+  const savedState = getWindowState()
+  
+  // 获取默认窗口尺寸（基于主屏幕）
+  const defaultSize = getDefaultWindowSize()
 
   const windowOptions = {
-    width: 1200,
-    height: 800,
+    width: defaultSize.width,
+    height: defaultSize.height,
     frame: false,
     titleBarStyle: 'hidden',
     webPreferences: {
@@ -234,8 +328,8 @@ async function createWindow() {
 
   // 如果有保存的状态,使用保存的状态
   if (savedState) {
-    windowOptions.width = savedState.width || 1200
-    windowOptions.height = savedState.height || 800
+    windowOptions.width = savedState.width || defaultSize.width
+    windowOptions.height = savedState.height || defaultSize.height
     windowOptions.x = savedState.x
     windowOptions.y = savedState.y
   }
@@ -261,7 +355,7 @@ async function createWindow() {
   }
 
   // 窗口状态变化时保存
-  const saveCurrentState = async () => {
+  const saveCurrentState = () => {
     const bounds = mainWindow.getBounds()
     const state = {
       width: bounds.width,
@@ -271,7 +365,7 @@ async function createWindow() {
       is_maximized: mainWindow.isMaximized(),
       is_fullscreen: mainWindow.isFullScreen()
     }
-    await saveWindowState(state)
+    saveWindowState(state)
   }
 
   // 监听窗口状态变化事件
@@ -288,15 +382,26 @@ async function createWindow() {
 }
 
 app.whenReady().then(async () => {
-  try {
-    await startBackend()
-    console.log('Backend server started successfully, creating window...')
-  } catch (error) {
-    console.error('Failed to start backend:', error)
-    console.log('Continuing without backend...')
-  }
+  // 初始化 store
+  await initStore()
 
+  // 立即创建窗口，不等待后端
   createWindow()
+
+  // 异步启动后端服务
+  startBackend().then(() => {
+    console.log('Backend server started successfully')
+    // 通知渲染进程后端已就绪
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('backend-ready')
+    }
+  }).catch((error) => {
+    console.error('Failed to start backend:', error)
+    // 通知渲染进程后端启动失败
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('backend-error', error.message)
+    }
+  })
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
@@ -320,6 +425,15 @@ app.on('before-quit', () => {
 
 ipcMain.handle('get-app-version', () => {
   return app.getVersion()
+})
+
+ipcMain.handle('health-check', async () => {
+  try {
+    return await makeRequest({ path: '/api/health', method: 'GET' })
+  } catch (error) {
+    console.error('Health check error:', error)
+    return { status: 'error' }
+  }
 })
 
 // Config API
@@ -360,14 +474,60 @@ ipcMain.handle('test-database-connection', async (_event, config) => {
   }
 })
 
+ipcMain.handle('get-scan-roots', async () => {
+  try {
+    const result = await makeRequest({ path: '/api/config/scan-roots', method: 'GET' })
+    if (result && result.error) {
+      throw new Error(result.error)
+    }
+    return result
+  } catch (error) {
+    console.error('Get scan roots error:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error), roots: [] }
+  }
+})
+
+ipcMain.handle('save-scan-roots', async (_event, roots) => {
+  try {
+    const result = await makeRequest({
+      path: '/api/config/scan-roots',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }, { roots })
+    if (result && result.error) {
+      throw new Error(result.error)
+    }
+    return result
+  } catch (error) {
+    console.error('Save scan roots error:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('select-directory', async () => {
+  try {
+    const result = await dialog.showOpenDialog({
+      properties: ['openDirectory']
+    })
+    if (result.canceled) return null
+    return result.filePaths && result.filePaths[0] ? result.filePaths[0] : null
+  } catch (error) {
+    console.error('Select directory error:', error)
+    return null
+  }
+})
+
 // Indexing API
-ipcMain.handle('start-index', async (_event, drives) => {
+ipcMain.handle('start-index', async (_event, roots) => {
   try {
     const result = await makeRequest({
       path: '/api/files/index/start',
       method: 'POST',
       headers: { 'Content-Type': 'application/json' }
-    }, { drives })
+    }, { roots })
+    if (result && result.error) {
+      throw new Error(result.error)
+    }
     return result
   } catch (error) {
     console.error('Start index error:', error)
@@ -393,6 +553,19 @@ ipcMain.handle('get-indexing-progress', async () => {
   } catch (error) {
     console.error('Get progress error:', error)
     return { isIndexing: false, progress: 0 }
+  }
+})
+
+ipcMain.handle('force-reindex', async (_event, roots) => {
+  try {
+    return await makeRequest({
+      path: '/api/files/force-reindex',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }, { roots })
+  } catch (error) {
+    console.error('Force reindex error:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
 
@@ -442,6 +615,37 @@ ipcMain.handle('get-file-counts', async () => {
   } catch (error) {
     console.error('Get file counts error:', error)
     return {}
+  }
+})
+
+ipcMain.handle('get-file-open-configs', async () => {
+  try {
+    return await makeRequest({ path: '/api/files/open-configs', method: 'GET' })
+  } catch (error) {
+    console.error('Get file open configs error:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error), configs: [] }
+  }
+})
+
+ipcMain.handle('get-file-open-config', async (_event, extension) => {
+  try {
+    return await makeRequest({ path: `/api/files/open-config/${encodeURIComponent(extension)}`, method: 'GET' })
+  } catch (error) {
+    console.error('Get file open config error:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error), config: null }
+  }
+})
+
+ipcMain.handle('save-file-open-config', async (_event, payload) => {
+  try {
+    return await makeRequest({
+      path: '/api/files/open-config',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }, payload)
+  } catch (error) {
+    console.error('Save file open config error:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
 

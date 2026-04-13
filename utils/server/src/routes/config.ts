@@ -29,6 +29,34 @@ router.post('/', async (req, res) => {
   }
 });
 
+router.get('/scan-roots', async (req, res) => {
+  try {
+    const roots = await dbService.getScanRoots();
+    res.json({ success: true, roots });
+  } catch (error) {
+    console.error('Get scan roots error:', error);
+    res.status(500).json({ error: 'Failed to get scan roots' });
+  }
+});
+
+router.post('/scan-roots', async (req, res) => {
+  try {
+    const { roots } = req.body;
+    if (!Array.isArray(roots)) {
+      return res.status(400).json({ error: 'roots must be an array' });
+    }
+    if (!roots.every((x) => typeof x === 'string')) {
+      return res.status(400).json({ error: 'roots must be string[]' });
+    }
+
+    await dbService.setScanRoots(roots);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Save scan roots error:', error);
+    res.status(500).json({ error: 'Failed to save scan roots' });
+  }
+});
+
 // 测试数据库连接
 router.post('/test-db', async (req, res) => {
   try {

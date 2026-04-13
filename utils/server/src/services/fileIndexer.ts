@@ -72,7 +72,7 @@ export class FileIndexer {
 
   // 开始索引
   async startIndexing(
-    drives: string[],
+    roots: string[],
     options: {
       excludeC?: boolean;
       excludeNodeModules?: boolean;
@@ -93,7 +93,7 @@ export class FileIndexer {
     this.indexedFileIds.clear();
     this.indexedFileModifiedTimes.clear();
 
-    console.log('Starting file indexing for drives:', drives);
+    console.log('Starting file indexing for roots:', roots);
     console.log('Options:', options);
 
     try {
@@ -108,17 +108,16 @@ export class FileIndexer {
       // 直接扫描并索引文件，边扫描边处理
       console.log('Scanning and indexing files...');
       let totalFilesFound = 0;
-      for (const drive of drives) {
+      for (const root of roots) {
         if (!this.isIndexing) break;
-        // 修复驱动器路径格式：确保根目录有反斜杠
-        let normalizedDrive = drive;
-        // D: -> D:\, E: -> E:\
-        if (normalizedDrive.length === 2 && normalizedDrive[1] === ':') {
-          normalizedDrive = normalizedDrive + '\\';
+        let normalizedRoot = root;
+        if (normalizedRoot.length === 2 && normalizedRoot[1] === ':') {
+          normalizedRoot = normalizedRoot + '\\';
         }
-        writeLog(`[startIndexing] Scanning drive: ${drive} -> ${normalizedDrive}`);
-        const driveFileCount = await this.scanAndIndexFiles(normalizedDrive, options);
-        totalFilesFound += driveFileCount;
+        normalizedRoot = path.normalize(normalizedRoot);
+        writeLog(`[startIndexing] Scanning root: ${root} -> ${normalizedRoot}`);
+        const rootFileCount = await this.scanAndIndexFiles(normalizedRoot, options);
+        totalFilesFound += rootFileCount;
       }
       this.totalFiles = totalFilesFound;
       console.log(`Total files found and indexed: ${this.totalFiles}`);

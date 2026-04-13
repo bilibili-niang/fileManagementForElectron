@@ -547,6 +547,60 @@ export class DatabaseService {
     }
   }
 
+  async getAppConfigValue(key: string): Promise<string | null> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const [rows] = await this.pool.execute(
+      'SELECT config_value FROM app_config WHERE config_key = ? LIMIT 1',
+      [key]
+    );
+
+    const results = rows as any[];
+    if (results.length === 0) return null;
+    return results[0].config_value ?? null;
+  }
+
+  async setAppConfigValue(key: string, value: string | null): Promise<void> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    await this.pool.execute(
+      `INSERT INTO app_config (config_key, config_value)
+       VALUES (?, ?)
+       ON DUPLICATE KEY UPDATE
+       config_value = VALUES(config_value)`,
+      [key, value]
+    );
+  }
+
+  async getScanRoots(): Promise<string[]> {
+    const raw = await this.getAppConfigValue('scan_roots');
+    if (!raw) return [];
+
+    try {
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) return [];
+      return parsed.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim());
+    } catch {
+      return [];
+    }
+  }
+
+  async setScanRoots(roots: string[]): Promise<void> {
+    const normalized = Array.from(
+      new Set(
+        (roots || [])
+          .filter((x) => typeof x === 'string')
+          .map((x) => x.trim())
+          .filter(Boolean)
+      )
+    );
+    await this.setAppConfigValue('scan_roots', JSON.stringify(normalized));
+  }
+
   // ==================== 索引排除规则管理 ====================
 
   // 获取所有排除规则

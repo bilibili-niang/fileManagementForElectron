@@ -1,10 +1,12 @@
 import { Router, type IRouter } from 'express';
 import { FileService } from '../services/fileService';
+import { DatabaseService } from '../services/databaseService';
 import fs from 'fs';
 import path from 'path';
 
 const router: IRouter = Router();
 const fileService = new FileService();
+const dbService = new DatabaseService();
 
 // 搜索文件
 router.get('/search', async (req, res) => {
@@ -99,13 +101,27 @@ router.get('/counts', async (req, res) => {
 // 开始索引 - 立即返回，在后台运行
 router.post('/index/start', async (req, res) => {
   try {
-    const { drives } = req.body;
+    const rootsInput = req.body?.roots ?? req.body?.drives;
+    const rootsFromBody = Array.isArray(rootsInput) ? rootsInput : [];
+    const rootsFromConfig = rootsFromBody.length > 0 ? [] : await dbService.getScanRoots();
+    const roots = Array.from(
+      new Set(
+        [...rootsFromBody, ...rootsFromConfig]
+          .filter((x) => typeof x === 'string')
+          .map((x) => x.trim())
+          .filter(Boolean)
+      )
+    );
+
+    if (roots.length === 0) {
+      return res.status(400).json({ error: 'No scan roots configured' });
+    }
     
     // 立即返回，不等待索引完成
     res.json({ success: true, message: 'Indexing started' });
     
     // 在后台启动索引
-    fileService.startIndexing(drives).catch(error => {
+    fileService.startIndexing(roots).catch(error => {
       console.error('Background indexing error:', error);
     });
   } catch (error) {
@@ -257,17 +273,27 @@ router.post('/open-system', async (req, res) => {
 // 强制重新索引 - 清除所有数据后重新索引
 router.post('/force-reindex', async (req, res) => {
   try {
-    const { drives } = req.body;
+    const rootsInput = req.body?.roots ?? req.body?.drives;
+    const rootsFromBody = Array.isArray(rootsInput) ? rootsInput : [];
+    const rootsFromConfig = rootsFromBody.length > 0 ? [] : await dbService.getScanRoots();
+    const roots = Array.from(
+      new Set(
+        [...rootsFromBody, ...rootsFromConfig]
+          .filter((x) => typeof x === 'string')
+          .map((x) => x.trim())
+          .filter(Boolean)
+      )
+    );
     
-    if (!drives || !Array.isArray(drives) || drives.length === 0) {
-      return res.status(400).json({ error: 'Drives array is required' });
+    if (roots.length === 0) {
+      return res.status(400).json({ error: 'No scan roots configured' });
     }
 
     // 先清除所有数据
     await fileService.clearAllData();
     
     // 开始重新索引
-    await fileService.startIndexing(drives);
+    await fileService.startIndexing(roots);
 
     res.json({ success: true, message: 'Force reindex started' });
   } catch (error: any) {

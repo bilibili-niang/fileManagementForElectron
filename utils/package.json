@@ -6,19 +6,17 @@
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
-    "preview": "vite preview",
-    "server": "cd server && pnpm dev",
+    "server:dev": "cd server && pnpm dev",
     "server:quiet": "cd server && pnpm dev:quiet",
     "server:build": "cd server && pnpm build",
-    "server:start": "cd server && pnpm start",
-    "dev:full": "concurrently \"pnpm server\" \"pnpm dev\"",
-    "electron:dev": "concurrently \"pnpm server:quiet\" \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:dev": "concurrently \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "electron:dev:legacy": "concurrently \"pnpm server:quiet\" \"vite\" \"wait-on http://localhost:5173 && electron .\"",
     "electron:build": "pnpm server:build && tsc && vite build && electron-builder",
-    "electron:build:installer": "pnpm server:build && tsc && vite build && electron-builder --publish=never",
     "electron:pack": "pnpm server:build && tsc && vite build && electron-builder --dir"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",
+    "electron-store": "^11.0.2",
     "fast-glob": "^3.3.0",
     "lodash-es": "^4.17.23",
     "mammoth": "^1.11.0",

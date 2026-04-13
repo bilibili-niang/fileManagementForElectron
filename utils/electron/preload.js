@@ -3,6 +3,7 @@ const { contextBridge, ipcRenderer } = require('electron')
 contextBridge.exposeInMainWorld('electronAPI', {
   // App info
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  healthCheck: () => ipcRenderer.invoke('health-check'),
 
   // Window controls
   windowMinimize: () => ipcRenderer.invoke('window-minimize'),
@@ -18,17 +19,24 @@ contextBridge.exposeInMainWorld('electronAPI', {
   loadConfig: () => ipcRenderer.invoke('load-config'),
   saveConfig: (config) => ipcRenderer.invoke('save-config', config),
   testDatabaseConnection: (config) => ipcRenderer.invoke('test-database-connection', config),
+  getScanRoots: () => ipcRenderer.invoke('get-scan-roots'),
+  saveScanRoots: (roots) => ipcRenderer.invoke('save-scan-roots', roots),
+  selectDirectory: () => ipcRenderer.invoke('select-directory'),
 
   // Indexing
   startIndex: (drives) => ipcRenderer.invoke('start-index', drives),
   stopIndex: () => ipcRenderer.invoke('stop-index'),
   getIndexingProgress: () => ipcRenderer.invoke('get-indexing-progress'),
+  forceReindex: (roots) => ipcRenderer.invoke('force-reindex', roots),
 
   // Search
   searchFiles: (query, page, pageSize, options) => ipcRenderer.invoke('search-files', query, page, pageSize, options),
   searchFileContent: (keyword, page, pageSize) => ipcRenderer.invoke('search-file-content', keyword, page, pageSize),
   getFilesByCategory: (category, page, pageSize) => ipcRenderer.invoke('get-files-by-category', category, page, pageSize),
   getFileCounts: () => ipcRenderer.invoke('get-file-counts'),
+  getFileOpenConfigs: () => ipcRenderer.invoke('get-file-open-configs'),
+  getFileOpenConfig: (extension) => ipcRenderer.invoke('get-file-open-config', extension),
+  saveFileOpenConfig: (payload) => ipcRenderer.invoke('save-file-open-config', payload),
   getContentIndexStats: () => ipcRenderer.invoke('get-content-index-stats'),
 
   // File content
@@ -57,5 +65,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   onIndexProgress: (callback) => ipcRenderer.on('index-progress', callback),
   onIndexComplete: (callback) => ipcRenderer.on('index-complete', callback),
   onError: (callback) => ipcRenderer.on('index-error', callback),
+  onBackendReady: (callback) => ipcRenderer.on('backend-ready', callback),
+  onBackendError: (callback) => ipcRenderer.on('backend-error', callback),
   removeAllListeners: (channel) => ipcRenderer.removeAllListeners(channel)
 })

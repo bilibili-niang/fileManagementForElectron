@@ -172,15 +172,7 @@ const vuetifyTheme = useTheme()
 // 检查是否需要显示首次引导
 async function checkFirstTime() {
   try {
-    const isElectron = !!(window as any).electronAPI?.loadConfig
-    let config
-
-    if (isElectron) {
-      config = await window.electronAPI.loadConfig()
-    } else {
-      const response = await fetch('http://localhost:3000/api/config')
-      config = await response.json()
-    }
+    const config = await configApi.loadConfig()
 
     // 如果没有配置或数据库未配置，显示引导
     if (!config || !config.mysql || !config.mysql.host) {
@@ -416,7 +408,7 @@ onMounted(async () => {
     console.log('后端服务状态:', health)
   } catch (error) {
     console.error('后端服务不可用:', error)
-    showSnackbar('后端服务未启动，请运行 npm run server', 'warning')
+    showSnackbar('后端服务不可用，请检查后端是否启动/端口是否被占用', 'warning')
   }
 
   await configStore.loadConfig()

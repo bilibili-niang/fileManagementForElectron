@@ -192,6 +192,56 @@
           <v-divider class="my-3"></v-divider>
 
           <div class="settings-section">
+            <h3 class="settings-section-title">扫描目录</h3>
+
+            <p class="text-caption text-grey mb-2">
+              索引只会扫描这里配置的目录
+            </p>
+
+            <div v-if="scanRoots.length" class="d-flex flex-wrap mb-2">
+              <v-chip
+                  v-for="root in scanRoots"
+                  :key="root"
+                  closable
+                  density="comfortable"
+                  color="primary"
+                  variant="outlined"
+                  class="mr-2 mb-2"
+                  @click:close="removeScanRoot(root)"
+              >
+                {{ root }}
+              </v-chip>
+            </div>
+            <div v-else class="text-caption text-grey mb-2">未配置扫描目录</div>
+
+            <div class="settings-actions">
+              <v-btn
+                  color="primary"
+                  variant="outlined"
+                  prepend-icon="mdi-folder-plus"
+                  density="comfortable"
+                  :loading="scanRootsLoading"
+                  :disabled="scanRootsLoading"
+                  @click="addScanRoot"
+              >
+                添加目录
+              </v-btn>
+
+              <v-btn
+                  color="grey"
+                  variant="text"
+                  density="comfortable"
+                  :disabled="scanRoots.length === 0 || scanRootsLoading"
+                  @click="clearScanRoots"
+              >
+                清空
+              </v-btn>
+            </div>
+          </div>
+
+          <v-divider class="my-3"></v-divider>
+
+          <div class="settings-section">
             <h3 class="settings-section-title">索引操作</h3>
 
             <div class="settings-actions">
@@ -310,7 +360,7 @@
           <ul class="ml-4">
             <li>删除所有已索引的文件数据</li>
             <li>删除所有文件内容索引</li>
-            <li>重新扫描所有驱动器</li>
+            <li>重新扫描已配置的扫描目录</li>
           </ul>
           <p class="mt-4 text-warning">此操作不可恢复，确定要继续吗？</p>
         </v-card-text>
@@ -428,6 +478,8 @@ const showForceReindexDialog = ref(false)
 const showFileOpenConfigDialog = ref(false)
 const indexing = ref(false)
 const totalFiles = ref(0)
+const scanRoots = ref<string[]>([])
+const scanRootsLoading = ref(false)
 
 /**
  * 文件打开方式配置接口
@@ -664,6 +716,8 @@ onMounted(async () => {
 
   // 加载排除规则
   await loadExcludeRules()
+
+  await loadScanRoots()
 })
 
 onUnmounted(() => {
@@ -748,14 +802,22 @@ function stopProgressPolling() {
  * 开始索引
  */
 async function startIndex() {
+  if (scanRoots.value.length === 0) {
+    showSnackbar('请先添加扫描目录', 'warning')
+    return
+  }
+
   indexing.value = true
   indexProgress.value.show = true
   indexProgress.value.percentage = 0
 
   try {
-    const drives = await getAvailableDrives()
-    console.log('[Settings] 开始索引，驱动器:', drives)
-    await window.electronAPI.startIndex(drives)
+    const roots = Array.from(scanRoots.value)
+    console.log('[Settings] 开始索引，扫描目录:', roots)
+    const result = await window.electronAPI.startIndex(roots)
+    if (result && (result as any).success === false) {
+      throw new Error((result as any).error || '启动索引失败')
+    }
 
     // 启动轮询
     startProgressPolling()
@@ -790,26 +852,37 @@ async function stopIndex() {
  */
 async function forceReindex() {
   showForceReindexDialog.value = false
+
+  if (scanRoots.value.length === 0) {
+    showSnackbar('请先添加扫描目录', 'warning')
+    return
+  }
+
   indexing.value = true
   indexProgress.value.show = true
   indexProgress.value.percentage = 0
 
   try {
-    const drives = await getAvailableDrives()
-    console.log('[Settings] 强制重新索引，驱动器:', drives)
+    const roots = Array.from(scanRoots.value)
+    console.log('[Settings] 强制重新索引，扫描目录:', roots)
 
-    // 调用强制重新索引 API
-    const response = await fetch('http://localhost:3000/api/files/force-reindex', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({drives})
-    })
+    const isElectron = !!(window as any).electronAPI?.forceReindex
+    if (isElectron) {
+      const result = await window.electronAPI.forceReindex(roots)
+      if (result && (result as any).success === false) {
+        throw new Error((result as any).error || '强制重新索引失败')
+      }
+    } else {
+      const response = await fetch('/api/files/force-reindex', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roots })
+      })
 
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || '强制重新索引失败')
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || '强制重新索引失败')
+      }
     }
 
     showSnackbar('强制重新索引已启动，正在清除旧数据...', 'info')
@@ -846,13 +919,66 @@ async function saveSettings() {
   }
 }
 
-/**
- * 获取可用驱动器
- */
-async function getAvailableDrives(): Promise<string[]> {
-  // 在浏览器环境中使用 Mock 数据
-  console.log('[Settings] 获取可用驱动器（Mock）')
-  return ['D:', 'E:']
+async function loadScanRoots() {
+  try {
+    const isElectron = !!(window as any).electronAPI?.getScanRoots
+    if (!isElectron) {
+      scanRoots.value = []
+      return
+    }
+
+    scanRootsLoading.value = true
+    const result = await window.electronAPI.getScanRoots()
+    if (result && (result as any).success === false) {
+      throw new Error((result as any).error || '加载扫描目录失败')
+    }
+    scanRoots.value = Array.isArray((result as any).roots) ? (result as any).roots : []
+  } catch (error) {
+    console.error('[Settings] 加载扫描目录失败:', error)
+    scanRoots.value = []
+  } finally {
+    scanRootsLoading.value = false
+  }
+}
+
+async function saveScanRoots(roots: string[]) {
+  const isElectron = !!(window as any).electronAPI?.saveScanRoots
+  if (!isElectron) return
+
+  scanRootsLoading.value = true
+  try {
+    const result = await window.electronAPI.saveScanRoots(roots)
+    if (result && (result as any).success === false) {
+      throw new Error((result as any).error || '保存扫描目录失败')
+    }
+    scanRoots.value = roots
+    showSnackbar('扫描目录已保存', 'success')
+  } catch (error) {
+    console.error('[Settings] 保存扫描目录失败:', error)
+    showSnackbar('保存扫描目录失败：' + (error as Error).message, 'error')
+  } finally {
+    scanRootsLoading.value = false
+  }
+}
+
+async function addScanRoot() {
+  const isElectron = !!(window as any).electronAPI?.selectDirectory
+  if (!isElectron) return
+
+  const selected = await window.electronAPI.selectDirectory()
+  if (!selected) return
+
+  const next = Array.from(new Set([...scanRoots.value, selected].map((x) => x.trim()).filter(Boolean)))
+  await saveScanRoots(next)
+}
+
+async function removeScanRoot(root: string) {
+  const next = scanRoots.value.filter((x) => x !== root)
+  await saveScanRoots(next)
+}
+
+async function clearScanRoots() {
+  await saveScanRoots([])
 }
 
 /**
@@ -860,12 +986,18 @@ async function getAvailableDrives(): Promise<string[]> {
  */
 async function loadFileCount() {
   try {
-    const response = await fetch('http://localhost:3000/api/files/counts')
-    if (response.ok) {
-      const counts = await response.json()
+    const isElectron = !!(window as any).electronAPI?.getFileCounts
+    if (isElectron) {
+      const counts = await window.electronAPI.getFileCounts()
       totalFiles.value = counts.all || 0
       console.log('[Settings] 文件总数:', totalFiles.value)
+      return
     }
+
+    const response = await fetch('/api/files/counts')
+    const counts = await response.json()
+    totalFiles.value = counts.all || 0
+    console.log('[Settings] 文件总数:', totalFiles.value)
   } catch (error) {
     console.error('[Settings] 获取文件总数失败:', error)
   }
@@ -876,12 +1008,21 @@ async function loadFileCount() {
  */
 async function loadFileOpenConfigs() {
   try {
-    const response = await fetch('http://localhost:3000/api/files/open-configs')
-    if (response.ok) {
-      const data = await response.json()
+    const isElectron = !!(window as any).electronAPI?.getFileOpenConfigs
+    if (isElectron) {
+      const data = await window.electronAPI.getFileOpenConfigs()
       fileOpenConfigs.value = data.configs || []
       console.log('[Settings] 加载文件打开配置:', fileOpenConfigs.value.length)
+      return
     }
+
+    const response = await fetch('/api/files/open-configs')
+    if (!response.ok) {
+      throw new Error('获取文件打开配置失败')
+    }
+    const data = await response.json()
+    fileOpenConfigs.value = data.configs || []
+    console.log('[Settings] 加载文件打开配置:', fileOpenConfigs.value.length)
   } catch (error) {
     console.error('[Settings] 获取文件打开配置失败:', error)
   }
@@ -892,25 +1033,36 @@ async function loadFileOpenConfigs() {
  */
 async function updateFileOpenConfig(item: FileOpenConfig, openMethod: string, internalViewer: string | null) {
   try {
-    const response = await fetch('http://localhost:3000/api/files/open-config', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        extension: item.extension.toLowerCase(),
-        openMethod: openMethod,
-        internalViewer: openMethod === 'internal' ? internalViewer : null
-      })
-    })
+    const payload = {
+      extension: item.extension.toLowerCase(),
+      openMethod: openMethod,
+      internalViewer: openMethod === 'internal' ? internalViewer : null
+    }
 
-    if (response.ok) {
+    const isElectron = !!(window as any).electronAPI?.saveFileOpenConfig
+    if (isElectron) {
+      const result = await window.electronAPI.saveFileOpenConfig(payload)
+      if (result && result.success === false) {
+        throw new Error(result.error || '更新配置失败')
+      }
       showSnackbar('配置已更新', 'success')
       await loadFileOpenConfigs()
-    } else {
-      const error = await response.json()
-      showSnackbar('更新配置失败：' + error.error, 'error')
+      return
     }
+
+    const response = await fetch('/api/files/open-config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({}))
+      throw new Error(error.error || '更新配置失败')
+    }
+
+    showSnackbar('配置已更新', 'success')
+    await loadFileOpenConfigs()
   } catch (error) {
     console.error('[Settings] 更新配置失败:', error)
     showSnackbar('更新配置失败', 'error')

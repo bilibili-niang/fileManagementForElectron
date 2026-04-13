@@ -13,5 +13,5 @@
     "schedule": "0 20 * * *"
   },
   "theme": "dark",
-  "activeTab": "category"
+  "activeTab": "settings"
 }

@@ -983,9 +983,14 @@ async function generatePreview(item: FileResult): Promise<string> {
     'sh', 'bat', 'ps1', 'cmd', 'sql', 'dockerfile', 'makefile', 'cmake', 'gradle']
   if (textExts.includes(ext)) {
     try {
-      // 使用 HTTP API 读取文件内容
-      const response = await fetch(`http://localhost:3000/api/files/content?path=${encodeURIComponent(fullPath)}`)
-      const data = await response.json()
+      const isElectron = !!(window as any).electronAPI?.readFile
+      let data: any
+      if (isElectron) {
+        data = await window.electronAPI.readFile(fullPath)
+      } else {
+        const response = await fetch(`/api/files/content?path=${encodeURIComponent(fullPath)}`)
+        data = await response.json()
+      }
 
       if (data.success && data.content) {
         const allLines = data.content.split('\n')

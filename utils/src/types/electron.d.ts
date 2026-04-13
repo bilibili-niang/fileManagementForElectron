@@ -17,6 +17,10 @@ export interface ElectronAPI {
   loadConfig: () => Promise<any>
   saveConfig: (config: any) => Promise<boolean>
   testDatabaseConnection: (config: any) => Promise<{ success: boolean; message?: string }>
+  healthCheck: () => Promise<{ status: string }>
+  getScanRoots: () => Promise<{ success: boolean; roots: string[]; error?: string }>
+  saveScanRoots: (roots: string[]) => Promise<{ success: boolean; error?: string }>
+  selectDirectory: () => Promise<string | null>
 
   // 历史记录
   getSearchHistory: (limit: number, type?: string) => Promise<any>
@@ -25,8 +29,9 @@ export interface ElectronAPI {
   clearSearchHistory: () => Promise<any>
 
   // 索引
-  startIndex: (drives: string[]) => Promise<any>
+  startIndex: (roots: string[]) => Promise<any>
   stopIndex: () => Promise<any>
+  forceReindex: (roots: string[]) => Promise<any>
   getIndexingProgress: () => Promise<any>
   onIndexProgress: (callback: (data: any) => void) => void
   onIndexComplete: (callback: (data: any) => void) => void
@@ -35,6 +40,9 @@ export interface ElectronAPI {
   // 预览
   parseDocx: (path: string) => Promise<any>
   saveFile: (path: string, content: string) => Promise<any>
+  getFileOpenConfigs: () => Promise<any>
+  getFileOpenConfig: (extension: string) => Promise<any>
+  saveFileOpenConfig: (payload: any) => Promise<any>
 
   // 窗口控制
   windowMinimize: () => Promise<void>

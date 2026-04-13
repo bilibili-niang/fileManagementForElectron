@@ -90,7 +90,10 @@ async function startServer() {
     await initMockRoutes();
 
     // 启动服务器
-    app.listen(PORT);
+    app.listen(PORT, () => {
+      console.log(`Server started successfully on port ${PORT}`);
+      console.log(`Health check: http://localhost:${PORT}/api/health`);
+    });
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

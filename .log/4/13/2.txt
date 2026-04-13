@@ -1,0 +1,535 @@
+C:\nvm4w\nodejs\npm.cmd run electron:dev
+
+> super-utils@1.0.0 electron:dev
+> concurrently "vite" "wait-on http://localhost:5173 && electron ."
+
+[0] The CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.
+[0]
+[0]   VITE v5.4.21  ready in 615 ms
+[0]
+[0]   ➜  Local:   http://localhost:5173/
+[0]   ➜  Network: use --host to expose
+[1]
+[1] Starting backend server...
+[1] Environment: development
+[1] Server directory: R:\utils-master\utils\server
+[1] [28232:0413/231957.044:ERROR:CONSOLE(1)] "Request Autofill.enable failed. {"code":-32601,"message":"'Autofill.enable' wasn't found"}", source: devtools://devtools/bundled/core/protocol_client/protocol_client.js (1)
+[1] [28232:0413/231957.044:ERROR:CONSOLE(1)] "Request Autofill.setAddresses failed. {"code":-32601,"message":"'Autofill.setAddresses' wasn't found"}", source: devtools://devtools/bundled/core/protocol_client/protocol_client.js (1)
+[1] Load config error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Load config error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Load config error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Health check error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Load config error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Command: npx tsx watch src/index.ts
+[1] Server directory: R:\utils-master\utils\server
+[1] Waiting for backend... (10 attempts)
+[1] Load config error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Get file counts error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Get files by category error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Load config error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Get content index stats error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Get search history error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Get search history error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Load config error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[0] 23:20:06 [vite] http proxy error: /api/health
+[0] Error: connect ECONNREFUSED 127.0.0.1:3000
+[0]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1555:16)
+[0] 23:20:06 [vite] http proxy error: /api/mock/routes
+[0] Error: connect ECONNREFUSED 127.0.0.1:3000
+[0]     at TCPConnectWrap.afterConnect [as oncomplete] (node:net:1555:16)
+[1] Load config error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Load config error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Get progress error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Get file counts error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Get exclude rules error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Get scan roots error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Waiting for backend... (20 attempts)
+[1] Load config error: AggregateError [ECONNREFUSED]:
+[1]     at internalConnectMultiple (node:net:1118:18)
+[1]     at afterConnectMultiple (node:net:1685:7) {
+[1]   code: 'ECONNREFUSED',
+[1]   [errors]: [
+[1]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '127.0.0.1',
+[1]       port: 3000
+[1]     },
+[1]     Error: connect ECONNREFUSED ::1:3000
+[1]         at createConnectionError (node:net:1648:14)
+[1]         at afterConnectMultiple (node:net:1678:16) {
+[1]       errno: -4078,
+[1]       code: 'ECONNREFUSED',
+[1]       syscall: 'connect',
+[1]       address: '::1',
+[1]       port: 3000
+[1]     }
+[1]   ]
+[1] }
+[1] Waiting for backend... (30 attempts)
+[1] Waiting for backend... (40 attempts)
+[1] Waiting for backend... (50 attempts)
+[1] Waiting for backend... (60 attempts)
+[1] Waiting for backend... (70 attempts)
+[1] Waiting for backend... (80 attempts)
+
+

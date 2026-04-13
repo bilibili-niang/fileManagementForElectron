@@ -1,0 +1,156 @@
+C:\nvm4w\nodejs\npm.cmd run electron:dev
+
+> super-utils@1.0.0 electron:dev
+> concurrently "pnpm server:dev" "vite" "wait-on http://localhost:5173 && electron ."
+
+[0]
+[0] > super-utils@1.0.0 server:dev R:\utils-master\utils
+[0] > cd server && pnpm dev
+[0]
+[1] The CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.
+[1]
+[1]   VITE v5.4.21  ready in 570 ms
+[1]
+[1]   ➜  Local:   http://localhost:5173/
+[1]   ➜  Network: use --host to expose
+[0]
+[0] > super-utils-server@1.0.0 dev R:\utils-master\utils\server
+[0] > tsx watch src/index.ts
+[0]
+[2]
+[2] Starting backend server...
+[2] Environment: development
+[2] Server directory: R:\utils-master\utils\server
+[2] Failed to start backend: Error: Backend service startup timeout
+[2]     at Timeout.check [as _onTimeout] (R:\utils-master\utils\electron\main.js:71:16)
+[2]     at listOnTimeout (node:internal/timers:581:17)
+[2]     at process.processTimers (node:internal/timers:519:7)
+[2] Continuing without backend...
+[2] [27356:0413/224239.253:ERROR:CONSOLE(1)] "Request Autofill.enable failed. {"code":-32601,"message":"'Autofill.enable' wasn't found"}", source: devtools://devtools/bundled/core/protocol_client/protocol_client.js (1)
+[2] [27356:0413/224239.253:ERROR:CONSOLE(1)] "Request Autofill.setAddresses failed. {"code":-32601,"message":"'Autofill.setAddresses' wasn't found"}", source: devtools://devtools/bundled/core/protocol_client/protocol_client.js (1)
+[2] Load config error: AggregateError [ECONNREFUSED]:
+[2]     at internalConnectMultiple (node:net:1118:18)
+[2]     at afterConnectMultiple (node:net:1685:7) {
+[2]   code: 'ECONNREFUSED',
+[2]   [errors]: [
+[2]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[2]         at createConnectionError (node:net:1648:14)
+[2]         at afterConnectMultiple (node:net:1678:16) {
+[2]       errno: -4078,
+[2]       code: 'ECONNREFUSED',
+[2]       syscall: 'connect',
+[2]       address: '127.0.0.1',
+[2]       port: 3000
+[2]     },
+[2]     Error: connect ECONNREFUSED ::1:3000
+[2]         at createConnectionError (node:net:1648:14)
+[2]         at afterConnectMultiple (node:net:1678:16) {
+[2]       errno: -4078,
+[2]       code: 'ECONNREFUSED',
+[2]       syscall: 'connect',
+[2]       address: '::1',
+[2]       port: 3000
+[2]     }
+[2]   ]
+[2] }
+[2] Load config error: AggregateError [ECONNREFUSED]:
+[2]     at internalConnectMultiple (node:net:1118:18)
+[2]     at afterConnectMultiple (node:net:1685:7) {
+[2]   code: 'ECONNREFUSED',
+[2]   [errors]: [
+[2]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[2]         at createConnectionError (node:net:1648:14)
+[2]         at afterConnectMultiple (node:net:1678:16) {
+[2]       errno: -4078,
+[2]       code: 'ECONNREFUSED',
+[2]       syscall: 'connect',
+[2]       address: '127.0.0.1',
+[2]       port: 3000
+[2]     },
+[2]     Error: connect ECONNREFUSED ::1:3000
+[2]         at createConnectionError (node:net:1648:14)
+[2]         at afterConnectMultiple (node:net:1678:16) {
+[2]       errno: -4078,
+[2]       code: 'ECONNREFUSED',
+[2]       syscall: 'connect',
+[2]       address: '::1',
+[2]       port: 3000
+[2]     }
+[2]   ]
+[2] }
+[2] Load config error: AggregateError [ECONNREFUSED]:
+[2]     at internalConnectMultiple (node:net:1118:18)
+[2]     at afterConnectMultiple (node:net:1685:7) {
+[2]   code: 'ECONNREFUSED',
+[2]   [errors]: [
+[2]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[2]         at createConnectionError (node:net:1648:14)
+[2]         at afterConnectMultiple (node:net:1678:16) {
+[2]       errno: -4078,
+[2]       code: 'ECONNREFUSED',
+[2]       syscall: 'connect',
+[2]       address: '127.0.0.1',
+[2]       port: 3000
+[2]     },
+[2]     Error: connect ECONNREFUSED ::1:3000
+[2]         at createConnectionError (node:net:1648:14)
+[2]         at afterConnectMultiple (node:net:1678:16) {
+[2]       errno: -4078,
+[2]       code: 'ECONNREFUSED',
+[2]       syscall: 'connect',
+[2]       address: '::1',
+[2]       port: 3000
+[2]     }
+[2]   ]
+[2] }
+[2] Health check error: AggregateError [ECONNREFUSED]:
+[2]     at internalConnectMultiple (node:net:1118:18)
+[2]     at afterConnectMultiple (node:net:1685:7) {
+[2]   code: 'ECONNREFUSED',
+[2]   [errors]: [
+[2]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[2]         at createConnectionError (node:net:1648:14)
+[2]         at afterConnectMultiple (node:net:1678:16) {
+[2]       errno: -4078,
+[2]       code: 'ECONNREFUSED',
+[2]       syscall: 'connect',
+[2]       address: '127.0.0.1',
+[2]       port: 3000
+[2]     },
+[2]     Error: connect ECONNREFUSED ::1:3000
+[2]         at createConnectionError (node:net:1648:14)
+[2]         at afterConnectMultiple (node:net:1678:16) {
+[2]       errno: -4078,
+[2]       code: 'ECONNREFUSED',
+[2]       syscall: 'connect',
+[2]       address: '::1',
+[2]       port: 3000
+[2]     }
+[2]   ]
+[2] }
+[2] Load config error: AggregateError [ECONNREFUSED]:
+[2]     at internalConnectMultiple (node:net:1118:18)
+[2]     at afterConnectMultiple (node:net:1685:7) {
+[2]   code: 'ECONNREFUSED',
+[2]   [errors]: [
+[2]     Error: connect ECONNREFUSED 127.0.0.1:3000
+[2]         at createConnectionError (node:net:1648:14)
+[2]         at afterConnectMultiple (node:net:1678:16) {
+[2]       errno: -4078,
+[2]       code: 'ECONNREFUSED',
+[2]       syscall: 'connect',
+[2]       address: '127.0.0.1',
+[2]       port: 3000
+[2]     },
+[2]     Error: connect ECONNREFUSED ::1:3000
+[2]         at createConnectionError (node:net:1648:14)
+[2]         at afterConnectMultiple (node:net:1678:16) {
+[2]       errno: -4078,
+[2]       code: 'ECONNREFUSED',
+[2]       syscall: 'connect',
+[2]       address: '::1',
+[2]       port: 3000
+[2]     }
+[2]   ]
+[2] }
+

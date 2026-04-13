@@ -104,11 +104,11 @@ export class FileService {
   }
 
   // 开始索引 - 立即返回，在后台运行
-  async startIndexing(drives: string[]): Promise<void> {
-    console.log('FileService: Starting indexing for drives:', drives);
+  async startIndexing(roots: string[]): Promise<void> {
+    console.log('FileService: Starting indexing for roots:', roots);
     
     // 在后台启动索引，不等待完成
-    this.fileIndexer.startIndexing(drives, {
+    this.fileIndexer.startIndexing(roots, {
       excludeNodeModules: true,
       onProgress: (progress) => {
         console.log(`Indexing progress: ${(progress.progress * 100).toFixed(1)}% - ${progress.currentPath}`);
