@@ -2,10 +2,39 @@ const { app, BrowserWindow, ipcMain, shell, dialog, screen } = require('electron
 const path = require('path')
 const http = require('http')
 const { spawn } = require('child_process')
+const fs = require('fs')
 
 let mainWindow = null
 let backendProcess = null
 let store = null
+
+// 日志文件路径
+const logDir = path.join(app.getAppPath(), '..', '.log', new Date().toISOString().slice(0, 10).replace(/-/g, '/'))
+const logFile = path.join(logDir, `electron-${Date.now()}.log`)
+
+// 确保日志目录存在
+if (!fs.existsSync(logDir)) {
+  fs.mkdirSync(logDir, { recursive: true })
+}
+
+// 日志函数
+function log(level, ...args) {
+  const timestamp = new Date().toISOString()
+  const message = `[${timestamp}] [${level}] ${args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ')}`
+  
+  // 输出到控制台
+  console.log(message)
+  
+  // 写入日志文件
+  fs.appendFileSync(logFile, message + '\n')
+}
+
+const logger = {
+  info: (...args) => log('INFO', ...args),
+  error: (...args) => log('ERROR', ...args),
+  warn: (...args) => log('WARN', ...args),
+  debug: (...args) => log('DEBUG', ...args)
+}
 
 // 初始化 electron-store (动态导入 ES Module)
 async function initStore() {

@@ -149,8 +149,10 @@ async function saveActiveTab(tab: string) {
     const isElectron = !!(window as any).electronAPI?.loadConfig
     if (isElectron) {
       const config = await window.electronAPI.loadConfig()
-      config.activeTab = tab
-      await window.electronAPI.saveConfig(config)
+      if (config) {
+        config.activeTab = tab
+        await window.electronAPI.saveConfig(config)
+      }
     }
     localStorage.setItem('active-tab', tab)
   } catch (error) {
