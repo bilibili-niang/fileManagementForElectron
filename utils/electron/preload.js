@@ -28,6 +28,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   stopIndex: () => ipcRenderer.invoke('stop-index'),
   getIndexingProgress: () => ipcRenderer.invoke('get-indexing-progress'),
   forceReindex: (roots) => ipcRenderer.invoke('force-reindex', roots),
+  clearAllData: () => ipcRenderer.invoke('clear-all-data'),
 
   // Search
   searchFiles: (query, page, pageSize, options) => ipcRenderer.invoke('search-files', query, page, pageSize, options),

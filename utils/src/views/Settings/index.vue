@@ -277,6 +277,17 @@
               >
                 强制重新索引
               </v-btn>
+
+              <v-btn
+                  color="error"
+                  variant="outlined"
+                  prepend-icon="mdi-database-remove"
+                  @click="showClearAllDataDialog = true"
+                  :disabled="indexing"
+                  density="comfortable"
+              >
+                清除所有数据
+              </v-btn>
             </div>
 
             <!-- 索引进度显示 -->
@@ -371,6 +382,51 @@
           </v-btn>
           <v-btn color="error" variant="elevated" @click="forceReindex">
             确认重新索引
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+
+    <!-- 清除所有数据确认对话框 -->
+    <v-dialog v-model="showClearAllDataDialog" max-width="500">
+      <v-card>
+        <v-card-title class="text-h5 text-error">
+          <v-icon icon="mdi-alert-circle" class="mr-2"></v-icon>
+          确认清除所有数据？
+        </v-card-title>
+        <v-card-text>
+          <p class="mb-2 text-error font-weight-bold">警告：此操作将永久删除以下所有数据：</p>
+          <ul class="ml-4">
+            <li>所有已索引的文件记录</li>
+            <li>所有文件内容索引</li>
+            <li>所有扫描目录配置</li>
+            <li>搜索历史记录</li>
+            <li>排除规则配置</li>
+            <li>文件打开方式配置</li>
+          </ul>
+          <p class="mt-4 text-error font-weight-bold">此操作不可恢复！</p>
+          <v-text-field
+            v-model="clearDataConfirmText"
+            label='请输入 "确认删除" 以继续'
+            placeholder="确认删除"
+            class="mt-4"
+            hide-details
+            variant="outlined"
+            density="comfortable"
+          ></v-text-field>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn color="grey" variant="text" @click="showClearAllDataDialog = false">
+            取消
+          </v-btn>
+          <v-btn 
+            color="error" 
+            variant="elevated" 
+            @click="clearAllData"
+            :disabled="clearDataConfirmText !== '确认删除'"
+          >
+            确认清除所有数据
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -476,6 +532,8 @@ const enableSchedule = ref(false)
 const showConfigDialog = ref(false)
 const showForceReindexDialog = ref(false)
 const showFileOpenConfigDialog = ref(false)
+const showClearAllDataDialog = ref(false)
+const clearDataConfirmText = ref('')
 const indexing = ref(false)
 const totalFiles = ref(0)
 const scanRoots = ref<string[]>([])
@@ -898,6 +956,53 @@ async function forceReindex() {
     indexProgress.value.show = false
     stopProgressPolling()
     showSnackbar('强制重新索引失败：' + (error as Error).message, 'error')
+  }
+}
+
+/**
+ * 清除所有数据
+ */
+async function clearAllData() {
+  if (clearDataConfirmText.value !== '确认删除') {
+    return
+  }
+
+  showClearAllDataDialog.value = false
+  clearDataConfirmText.value = ''
+
+  indexing.value = true
+
+  try {
+    const isElectron = !!(window as any).electronAPI?.clearAllData
+    if (isElectron) {
+      const result = await window.electronAPI.clearAllData()
+      if (result && (result as any).success === false) {
+        throw new Error((result as any).error || '清除数据失败')
+      }
+    } else {
+      const response = await fetch('/api/files/clear-all-data', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' }
+      })
+
+      if (!response.ok) {
+        const error = await response.json()
+        throw new Error(error.error || '清除数据失败')
+      }
+    }
+
+    // 重置本地状态
+    scanRoots.value = []
+    totalFiles.value = 0
+    config.value.indexing.lastIndexed = null
+    await saveSettings()
+
+    showSnackbar('所有数据已清除', 'success')
+  } catch (error) {
+    console.error('Clear all data failed:', error)
+    showSnackbar('清除数据失败：' + (error as Error).message, 'error')
+  } finally {
+    indexing.value = false
   }
 }
 

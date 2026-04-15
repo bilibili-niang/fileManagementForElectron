@@ -265,8 +265,8 @@ export class DatabaseService {
     }
 
     const [result] = await this.pool.execute(
-      `INSERT INTO files (name, path, extension, size, created_time, modified_time, accessed_time, hash, is_hidden, is_readonly, is_system, attributes) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO files (name, path, extension, size, created_time, modified_time, accessed_time, hash, is_hidden, is_readonly, is_system, attributes, scan_directory_id) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE 
        size = VALUES(size), 
        created_time = VALUES(created_time),
@@ -276,9 +276,10 @@ export class DatabaseService {
        is_hidden = VALUES(is_hidden),
        is_readonly = VALUES(is_readonly),
        is_system = VALUES(is_system),
-       attributes = VALUES(attributes)`,
+       attributes = VALUES(attributes),
+       scan_directory_id = VALUES(scan_directory_id)`,
       [file.name, file.path, file.extension, file.size, file.created_time, file.modified_time, file.accessed_time, file.hash, 
-       file.is_hidden, file.is_readonly, file.is_system, file.attributes]
+       file.is_hidden, file.is_readonly, file.is_system, file.attributes, file.scan_directory_id || null]
     );
 
     // 如果是新插入的记录，返回插入的 ID
@@ -457,7 +458,18 @@ export class DatabaseService {
     await this.pool.execute('SET FOREIGN_KEY_CHECKS = 0');
     await this.pool.execute('TRUNCATE TABLE file_contents');
     await this.pool.execute('TRUNCATE TABLE files');
+    await this.pool.execute('TRUNCATE TABLE scan_directories');
+    await this.pool.execute('TRUNCATE TABLE search_history');
+    await this.pool.execute('TRUNCATE TABLE debug_logs');
+    await this.pool.execute('TRUNCATE TABLE index_exclude_rules');
+    await this.pool.execute('TRUNCATE TABLE file_open_config');
     await this.pool.execute('SET FOREIGN_KEY_CHECKS = 1');
+    
+    // 清除配置表中的扫描目录配置
+    await this.pool.execute(
+      "DELETE FROM app_config WHERE config_key = 'scan_roots'"
+    );
+    
     console.log('DatabaseService: All data cleared');
   }
 
@@ -590,6 +602,8 @@ export class DatabaseService {
   }
 
   async setScanRoots(roots: string[]): Promise<void> {
+    if (!this.pool) return;
+    
     const normalized = Array.from(
       new Set(
         (roots || [])
@@ -598,7 +612,91 @@ export class DatabaseService {
           .filter(Boolean)
       )
     );
-    await this.setAppConfigValue('scan_roots', JSON.stringify(normalized));
+
+    try {
+      // 获取现有的扫描目录
+      const [existingDirs] = await this.pool.execute(
+        'SELECT id, path FROM scan_directories'
+      );
+      const existingPaths = new Map((existingDirs as any[]).map(d => [d.path, d.id]));
+
+      // 找出需要删除的目录（在数据库中但不在新列表中）
+      const pathsToDelete: number[] = [];
+      for (const [path, id] of existingPaths) {
+        if (!normalized.some(newPath => 
+          path.toLowerCase() === newPath.toLowerCase()
+        )) {
+          pathsToDelete.push(id);
+        }
+      }
+
+      // 删除不再使用的扫描目录（级联删除会自动清理 files 表）
+      if (pathsToDelete.length > 0) {
+        console.log('Removing scan directories:', pathsToDelete);
+        const placeholders = pathsToDelete.map(() => '?').join(',');
+        await this.pool.execute(
+          `DELETE FROM scan_directories WHERE id IN (${placeholders})`,
+          pathsToDelete
+        );
+      }
+
+      // 添加新的扫描目录
+      for (const root of normalized) {
+        if (!existingPaths.has(root)) {
+          // 从路径中提取目录名称
+          const pathParts = root.split(/[\\/]/);
+          const name = pathParts[pathParts.length - 1] || root;
+          
+          await this.pool.execute(
+            `INSERT INTO scan_directories (path, name) VALUES (?, ?)
+             ON DUPLICATE KEY UPDATE path = VALUES(path)`,
+            [root, name]
+          );
+        }
+      }
+
+      // 同时更新 app_config 保持兼容性
+      await this.setAppConfigValue('scan_roots', JSON.stringify(normalized));
+    } catch (error) {
+      console.error('Error setting scan roots:', error);
+      throw error;
+    }
+  }
+
+  // 获取扫描目录及其ID
+  async getScanDirectories(): Promise<Array<{id: number; path: string; name: string}>> {
+    if (!this.pool) return [];
+    
+    const [rows] = await this.pool.execute(
+      'SELECT id, path, name FROM scan_directories WHERE is_enabled = TRUE ORDER BY id'
+    );
+    
+    return rows as Array<{id: number; path: string; name: string}>;
+  }
+
+  // 根据路径获取扫描目录ID
+  async getScanDirectoryIdByPath(path: string): Promise<number | null> {
+    if (!this.pool) return null;
+    
+    const [rows] = await this.pool.execute(
+      'SELECT id FROM scan_directories WHERE path = ?',
+      [path]
+    );
+    
+    const result = rows as any[];
+    return result[0]?.id || null;
+  }
+
+  // 更新扫描目录的文件数量和最后扫描时间
+  async updateScanDirectoryStats(directoryId: number, fileCount: number): Promise<void> {
+    if (!this.pool) return;
+    
+    await this.pool.execute(
+      `UPDATE scan_directories 
+       SET file_count = ?, last_scan_at = NOW() 
+       WHERE id = ?`,
+      [fileCount, directoryId]
+    );
   }
 
   // ==================== 索引排除规则管理 ====================

@@ -8,13 +8,21 @@ let mainWindow = null
 let backendProcess = null
 let store = null
 
-// 日志文件路径
-const logDir = path.join(app.getAppPath(), '..', '.log', new Date().toISOString().slice(0, 10).replace(/-/g, '/'))
+// 日志文件路径 - 使用项目根目录（utils 的上级目录）
+const isDev = !process.env.NODE_ENV || process.env.NODE_ENV === 'development'
+const projectRoot = isDev ? path.join(__dirname, '..', '..') : path.join(process.resourcesPath, '..')
+const logDir = path.join(projectRoot, '.log', new Date().toISOString().slice(0, 10).replace(/-/g, '/'))
 const logFile = path.join(logDir, `electron-${Date.now()}.log`)
 
 // 确保日志目录存在
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir, { recursive: true })
+try {
+  if (!fs.existsSync(logDir)) {
+    fs.mkdirSync(logDir, { recursive: true })
+  }
+  console.log('Log directory:', logDir)
+  console.log('Log file:', logFile)
+} catch (err) {
+  console.error('Failed to create log directory:', err)
 }
 
 // 日志函数
@@ -23,10 +31,18 @@ function log(level, ...args) {
   const message = `[${timestamp}] [${level}] ${args.map(arg => typeof arg === 'object' ? JSON.stringify(arg) : arg).join(' ')}`
   
   // 输出到控制台
-  console.log(message)
+  if (level === 'ERROR') {
+    console.error(message)
+  } else {
+    console.log(message)
+  }
   
   // 写入日志文件
-  fs.appendFileSync(logFile, message + '\n')
+  try {
+    fs.appendFileSync(logFile, message + '\n')
+  } catch (err) {
+    // 忽略日志写入错误
+  }
 }
 
 const logger = {
@@ -124,7 +140,7 @@ function checkBackendReady(port = API_PORT, timeoutMs = 60000) {
           try {
             const json = JSON.parse(data)
             if (json && json.status === 'ok') {
-              console.log('Backend service is ready')
+              logger.info('Backend service is ready')
               resolve(true)
               return
             }
@@ -138,7 +154,7 @@ function checkBackendReady(port = API_PORT, timeoutMs = 60000) {
       req.on('error', () => {
         // 每10次尝试输出一次日志
         if (attemptCount % 10 === 0) {
-          console.log(`Waiting for backend... (${attemptCount} attempts)`)
+          logger.info(`Waiting for backend... (${attemptCount} attempts)`)
         }
         setTimeout(check, 500)
       })
@@ -176,13 +192,13 @@ function startBackend() {
       serverDir = path.join(process.resourcesPath, 'server')
     }
 
-    console.log('Starting backend server...')
-    console.log('Environment:', isDev ? 'development' : 'production')
-    console.log('Server directory:', serverDir)
+    logger.info('Starting backend server...')
+    logger.info('Environment:', isDev ? 'development' : 'production')
+    logger.info('Server directory:', serverDir)
 
     // 先检查后端是否已经在运行
     checkBackendReady(API_PORT, 1500).then(() => {
-      console.log('Backend already running, skip spawn')
+      logger.info('Backend already running, skip spawn')
       resolve()
     }).catch(() => {
       // 后端未运行，需要启动
@@ -194,10 +210,15 @@ function startBackend() {
           return
         }
 
-        console.log('Command: npx tsx watch src/index.ts')
-        console.log('Server directory:', serverDir)
-        // 使用 pnpm 直接运行 tsx，避免 npx 路径问题
-        backendProcess = spawn('pnpm', ['exec', 'tsx', 'watch', 'src/index.ts'], {
+        logger.info('Command: node node_modules/tsx/dist/cli.mjs src/index.ts')
+        logger.info('Server directory:', serverDir)
+        // 直接使用 node 运行 tsx
+        const tsxPath = path.join(serverDir, 'node_modules/tsx/dist/cli.mjs')
+        if (!fs.existsSync(tsxPath)) {
+          reject(new Error(`tsx not found at: ${tsxPath}. Please run "pnpm install" in server directory.`))
+          return
+        }
+        backendProcess = spawn('node', [tsxPath, 'src/index.ts'], {
           cwd: serverDir,
           stdio: 'pipe',
           windowsHide: true
@@ -210,7 +231,7 @@ function startBackend() {
           return
         }
 
-        console.log('Command: node index.js')
+        logger.info('Command: node index.js')
         backendProcess = spawn('node', [distPath], {
           cwd: serverDir,
           stdio: 'pipe'
@@ -221,39 +242,51 @@ function startBackend() {
       if (backendProcess.stdout) {
         backendProcess.stdout.on('data', (data) => {
           const output = data.toString().trim()
-          console.log('[Backend]', output)
+          logger.info('[Backend]', output)
         })
       }
 
       if (backendProcess.stderr) {
         backendProcess.stderr.on('data', (data) => {
-          console.error('[Backend Error]', data.toString().trim())
+          const output = data.toString().trim()
+          logger.error('[Backend Error]', output)
         })
       }
 
       backendProcess.on('error', (error) => {
-        console.error('Failed to start backend process:', error)
+        logger.error('Failed to start backend process:', error.message)
+        logger.error('Error code:', error.code)
+        logger.error('Error stack:', error.stack)
         reject(error)
       })
 
       backendProcess.on('spawn', () => {
-        console.log('Backend process spawned successfully')
+        logger.info('Backend process spawned successfully, PID:', backendProcess.pid)
       })
 
       backendProcess.on('exit', (code, signal) => {
-        console.log(`Backend process exited with code ${code}, signal: ${signal}`)
+        logger.info(`Backend process exited with code ${code}, signal: ${signal}`)
         if (code !== 0 && code !== null) {
-          console.error(`Backend server exited unexpectedly`)
+          logger.error(`Backend server exited unexpectedly with code ${code}`)
         }
       })
 
-      checkBackendReady(API_PORT).then(() => {
-        console.log('Backend server started successfully')
-        resolve()
-      }).catch((error) => {
-        console.error('Backend ready check failed:', error)
-        reject(error)
-      })
+      // 等待2秒让后端开始初始化，然后再检查就绪状态
+      setTimeout(() => {
+        checkBackendReady(API_PORT, 120000).then(() => {
+          logger.info('Backend server started successfully')
+          resolve()
+        }).catch((error) => {
+          logger.error('Backend ready check failed:', error.message)
+          // 检查进程是否还在运行
+          if (backendProcess && !backendProcess.killed) {
+            logger.error('Backend process is still running but not responding')
+          } else {
+            logger.error('Backend process has exited')
+          }
+          reject(error)
+        })
+      }, 2000)
     })
 
     /**
@@ -268,7 +301,7 @@ function startBackend() {
  */
 function stopBackend() {
   if (backendProcess) {
-    console.log('Stopping backend server...')
+    logger.info('Stopping backend server...')
     backendProcess.kill()
     backendProcess = null
   }
@@ -299,7 +332,7 @@ function getWindowState() {
       }
     }
   } catch (error) {
-    console.error('获取窗口状态失败:', error)
+    logger.error('获取窗口状态失败:', error)
   }
   return null
 }
@@ -312,7 +345,7 @@ function saveWindowState(state) {
     if (!store) return
     store.set('windowState', state)
   } catch (error) {
-    console.error('保存窗口状态失败:', error)
+    logger.error('保存窗口状态失败:', error)
   }
 }
 
@@ -351,7 +384,8 @@ function createWindow() {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       nodeIntegration: false,
-      contextIsolation: true
+      contextIsolation: true,
+      webSecurity: !isDev // 开发环境禁用 webSecurity 以允许加载本地资源
     }
   }
 
@@ -419,13 +453,13 @@ app.whenReady().then(async () => {
 
   // 异步启动后端服务
   startBackend().then(() => {
-    console.log('Backend server started successfully')
+    logger.info('Backend server started successfully')
     // 通知渲染进程后端已就绪
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('backend-ready')
     }
   }).catch((error) => {
-    console.error('Failed to start backend:', error)
+    logger.error('Failed to start backend:', error)
     // 通知渲染进程后端启动失败
     if (mainWindow && !mainWindow.isDestroyed()) {
       mainWindow.webContents.send('backend-error', error.message)
@@ -460,7 +494,7 @@ ipcMain.handle('health-check', async () => {
   try {
     return await makeRequest({ path: '/api/health', method: 'GET' })
   } catch (error) {
-    console.error('Health check error:', error)
+    logger.error('Health check error:', error)
     return { status: 'error' }
   }
 })
@@ -470,7 +504,7 @@ ipcMain.handle('load-config', async () => {
   try {
     return await makeRequest({ path: '/api/config', method: 'GET' })
   } catch (error) {
-    console.error('Load config error:', error)
+    logger.error('Load config error:', error)
     return null
   }
 })
@@ -484,7 +518,7 @@ ipcMain.handle('save-config', async (_event, config) => {
     }, config)
     return result
   } catch (error) {
-    console.error('Save config error:', error)
+    logger.error('Save config error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -498,7 +532,7 @@ ipcMain.handle('test-database-connection', async (_event, config) => {
     }, config)
     return result
   } catch (error) {
-    console.error('Test DB connection error:', error)
+    logger.error('Test DB connection error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -511,7 +545,7 @@ ipcMain.handle('get-scan-roots', async () => {
     }
     return result
   } catch (error) {
-    console.error('Get scan roots error:', error)
+    logger.error('Get scan roots error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error), roots: [] }
   }
 })
@@ -528,7 +562,7 @@ ipcMain.handle('save-scan-roots', async (_event, roots) => {
     }
     return result
   } catch (error) {
-    console.error('Save scan roots error:', error)
+    logger.error('Save scan roots error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -541,7 +575,7 @@ ipcMain.handle('select-directory', async () => {
     if (result.canceled) return null
     return result.filePaths && result.filePaths[0] ? result.filePaths[0] : null
   } catch (error) {
-    console.error('Select directory error:', error)
+    logger.error('Select directory error:', error)
     return null
   }
 })
@@ -559,7 +593,7 @@ ipcMain.handle('start-index', async (_event, roots) => {
     }
     return result
   } catch (error) {
-    console.error('Start index error:', error)
+    logger.error('Start index error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -571,7 +605,7 @@ ipcMain.handle('stop-index', async () => {
       method: 'POST'
     })
   } catch (error) {
-    console.error('Stop index error:', error)
+    logger.error('Stop index error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -580,7 +614,7 @@ ipcMain.handle('get-indexing-progress', async () => {
   try {
     return await makeRequest({ path: '/api/files/index/progress', method: 'GET' })
   } catch (error) {
-    console.error('Get progress error:', error)
+    logger.error('Get progress error:', error)
     return { isIndexing: false, progress: 0 }
   }
 })
@@ -593,7 +627,20 @@ ipcMain.handle('force-reindex', async (_event, roots) => {
       headers: { 'Content-Type': 'application/json' }
     }, { roots })
   } catch (error) {
-    console.error('Force reindex error:', error)
+    logger.error('Force reindex error:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+ipcMain.handle('clear-all-data', async () => {
+  try {
+    return await makeRequest({
+      path: '/api/files/clear-all-data',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    })
+  } catch (error) {
+    logger.error('Clear all data error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -609,7 +656,7 @@ ipcMain.handle('search-files', async (_event, query, page, pageSize, options) =>
     })
     return await makeRequest({ path: `/api/files/search?${params.toString()}`, method: 'GET' })
   } catch (error) {
-    console.error('Search files error:', error)
+    logger.error('Search files error:', error)
     return { files: [], total: 0 }
   }
 })
@@ -623,7 +670,7 @@ ipcMain.handle('search-file-content', async (_event, keyword, page, pageSize) =>
     })
     return await makeRequest({ path: `/api/files/search-content?${params.toString()}`, method: 'GET' })
   } catch (error) {
-    console.error('Search content error:', error)
+    logger.error('Search content error:', error)
     return { files: [], total: 0 }
   }
 })
@@ -633,7 +680,7 @@ ipcMain.handle('get-files-by-category', async (_event, category, page, pageSize)
     const params = new URLSearchParams({ page: String(page), pageSize: String(pageSize) })
     return await makeRequest({ path: `/api/files/category/${encodeURIComponent(category)}?${params.toString()}`, method: 'GET' })
   } catch (error) {
-    console.error('Get files by category error:', error)
+    logger.error('Get files by category error:', error)
     return { files: [], total: 0 }
   }
 })
@@ -642,7 +689,7 @@ ipcMain.handle('get-file-counts', async () => {
   try {
     return await makeRequest({ path: '/api/files/counts', method: 'GET' })
   } catch (error) {
-    console.error('Get file counts error:', error)
+    logger.error('Get file counts error:', error)
     return {}
   }
 })
@@ -651,7 +698,7 @@ ipcMain.handle('get-file-open-configs', async () => {
   try {
     return await makeRequest({ path: '/api/files/open-configs', method: 'GET' })
   } catch (error) {
-    console.error('Get file open configs error:', error)
+    logger.error('Get file open configs error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error), configs: [] }
   }
 })
@@ -660,7 +707,7 @@ ipcMain.handle('get-file-open-config', async (_event, extension) => {
   try {
     return await makeRequest({ path: `/api/files/open-config/${encodeURIComponent(extension)}`, method: 'GET' })
   } catch (error) {
-    console.error('Get file open config error:', error)
+    logger.error('Get file open config error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error), config: null }
   }
 })
@@ -673,7 +720,7 @@ ipcMain.handle('save-file-open-config', async (_event, payload) => {
       headers: { 'Content-Type': 'application/json' }
     }, payload)
   } catch (error) {
-    console.error('Save file open config error:', error)
+    logger.error('Save file open config error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -684,7 +731,7 @@ ipcMain.handle('open-file', async (_event, filePath) => {
     await shell.openPath(filePath)
     return { success: true }
   } catch (error) {
-    console.error('Open file error:', error)
+    logger.error('Open file error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -694,7 +741,7 @@ ipcMain.handle('show-item-in-folder', async (_event, filePath) => {
     await shell.showItemInFolder(filePath)
     return { success: true }
   } catch (error) {
-    console.error('Show item in folder error:', error)
+    logger.error('Show item in folder error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -705,7 +752,7 @@ ipcMain.handle('get-exclude-rules', async () => {
   try {
     return await makeRequest({ path: '/api/config/exclude-rules', method: 'GET' })
   } catch (error) {
-    console.error('Get exclude rules error:', error)
+    logger.error('Get exclude rules error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -718,7 +765,7 @@ ipcMain.handle('add-exclude-rule', async (_event, rule) => {
       headers: { 'Content-Type': 'application/json' }
     }, rule)
   } catch (error) {
-    console.error('Add exclude rule error:', error)
+    logger.error('Add exclude rule error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -731,7 +778,7 @@ ipcMain.handle('update-exclude-rule', async (_event, id, updates) => {
       headers: { 'Content-Type': 'application/json' }
     }, updates)
   } catch (error) {
-    console.error('Update exclude rule error:', error)
+    logger.error('Update exclude rule error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -740,7 +787,7 @@ ipcMain.handle('delete-exclude-rule', async (_event, id) => {
   try {
     return await makeRequest({ path: `/api/config/exclude-rules/${id}`, method: 'DELETE' })
   } catch (error) {
-    console.error('Delete exclude rule error:', error)
+    logger.error('Delete exclude rule error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -753,7 +800,7 @@ ipcMain.handle('test-exclude-rule', async (_event, data) => {
       headers: { 'Content-Type': 'application/json' }
     }, data)
   } catch (error) {
-    console.error('Test exclude rule error:', error)
+    logger.error('Test exclude rule error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -788,7 +835,7 @@ ipcMain.handle('get-content-index-stats', async () => {
   try {
     return await makeRequest({ path: '/api/files/content-stats', method: 'GET' })
   } catch (error) {
-    console.error('Get content index stats error:', error)
+    logger.error('Get content index stats error:', error)
     return { totalFiles: 0, indexedFiles: 0 }
   }
 })
@@ -804,7 +851,7 @@ ipcMain.handle('get-search-history', async (_event, limit = 20, type) => {
     }
     return await makeRequest({ path: `/api/config/search-history?${params.toString()}`, method: 'GET' })
   } catch (error) {
-    console.error('Get search history error:', error)
+    logger.error('Get search history error:', error)
     return { success: false, history: [] }
   }
 })
@@ -814,7 +861,7 @@ ipcMain.handle('get-search-suggestions', async (_event, query, limit = 10) => {
     const params = new URLSearchParams({ query, limit: String(limit) })
     return await makeRequest({ path: `/api/config/search-suggestions?${params.toString()}`, method: 'GET' })
   } catch (error) {
-    console.error('Get search suggestions error:', error)
+    logger.error('Get search suggestions error:', error)
     return { success: false, suggestions: [] }
   }
 })
@@ -827,7 +874,7 @@ ipcMain.handle('add-search-history', async (_event, query, searchType, resultCou
       headers: { 'Content-Type': 'application/json' }
     }, { query, search_type: searchType, result_count: resultCount })
   } catch (error) {
-    console.error('Add search history error:', error)
+    logger.error('Add search history error:', error)
     return { success: false }
   }
 })
@@ -836,7 +883,7 @@ ipcMain.handle('clear-search-history', async () => {
   try {
     return await makeRequest({ path: '/api/config/search-history', method: 'DELETE' })
   } catch (error) {
-    console.error('Clear search history error:', error)
+    logger.error('Clear search history error:', error)
     return { success: false }
   }
 })
@@ -845,7 +892,7 @@ ipcMain.handle('delete-search-history', async (_event, id) => {
   try {
     return await makeRequest({ path: `/api/config/search-history/${id}`, method: 'DELETE' })
   } catch (error) {
-    console.error('Delete search history error:', error)
+    logger.error('Delete search history error:', error)
     return { success: false }
   }
 })
@@ -856,7 +903,7 @@ ipcMain.handle('parse-docx', async (_event, filePath) => {
   try {
     return await makeRequest({ path: `/api/files/parse-docx?path=${encodeURIComponent(filePath)}`, method: 'GET' })
   } catch (error) {
-    console.error('Parse docx error:', error)
+    logger.error('Parse docx error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -865,7 +912,7 @@ ipcMain.handle('read-file', async (_event, filePath) => {
   try {
     return await makeRequest({ path: `/api/files/content?path=${encodeURIComponent(filePath)}`, method: 'GET' })
   } catch (error) {
-    console.error('Read file error:', error)
+    logger.error('Read file error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -878,7 +925,7 @@ ipcMain.handle('save-file', async (_event, filePath, content) => {
       headers: { 'Content-Type': 'application/json' }
     }, { path: filePath, content })
   } catch (error) {
-    console.error('Save file error:', error)
+    logger.error('Save file error:', error)
     return { success: false, error: error instanceof Error ? error.message : String(error) }
   }
 })
@@ -886,6 +933,6 @@ ipcMain.handle('save-file', async (_event, filePath, content) => {
 // ==================== 调试日志 API ====================
 
 ipcMain.handle('add-debug-log', async (_event, component, message, data) => {
-  console.log(`[Debug] ${component}: ${message}`, data)
+  logger.info(`[Debug] ${component}: ${message}`, data)
   return { success: true }
 })

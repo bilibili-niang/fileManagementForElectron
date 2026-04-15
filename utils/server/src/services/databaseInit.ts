@@ -1,5 +1,11 @@
 import mysql from 'mysql2/promise';
 
+interface ColumnDef {
+  name: string;
+  def: string;
+  required: boolean;
+}
+
 const DEFAULT_CONFIG = {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '3306'),
@@ -42,6 +48,23 @@ export async function initializeDatabase(): Promise<void> {
       database: DEFAULT_CONFIG.database
     });
 
+    // 创建扫描目录表（必须先创建，因为 files 表有外键引用）
+    await connection.execute(`
+      CREATE TABLE IF NOT EXISTS scan_directories (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        path VARCHAR(500) NOT NULL UNIQUE,
+        name VARCHAR(255) DEFAULT NULL COMMENT '目录名称（可选）',
+        is_enabled BOOLEAN DEFAULT TRUE,
+        file_count INT DEFAULT 0 COMMENT '该目录下的文件数量（缓存）',
+        last_scan_at TIMESTAMP NULL DEFAULT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+        INDEX idx_path (path),
+        INDEX idx_is_enabled (is_enabled)
+      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+    `);
+    console.log('Table "scan_directories" created or already exists');
+
     // 创建 files 表
     await connection.execute(`
       CREATE TABLE IF NOT EXISTS files (
@@ -58,6 +81,7 @@ export async function initializeDatabase(): Promise<void> {
         is_readonly BOOLEAN DEFAULT FALSE,
         is_system BOOLEAN DEFAULT FALSE,
         attributes VARCHAR(100) DEFAULT '',
+        scan_directory_id INT DEFAULT NULL COMMENT '文件所属的扫描目录ID',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_name (name),
@@ -67,7 +91,9 @@ export async function initializeDatabase(): Promise<void> {
         INDEX idx_created_time (created_time),
         INDEX idx_hash (hash),
         INDEX idx_is_hidden (is_hidden),
-        UNIQUE KEY unique_file (path, name)
+        INDEX idx_scan_directory_id (scan_directory_id),
+        UNIQUE KEY unique_file (path, name),
+        FOREIGN KEY (scan_directory_id) REFERENCES scan_directories(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
     `);
     console.log('Table "files" created or already exists');
@@ -253,44 +279,32 @@ export async function initializeDatabase(): Promise<void> {
     `);
     console.log('Table "window_state" created or already exists');
 
-    // 迁移：添加新列到 files 表（如果不存在）
-    // 先获取现有列
-    const [columns] = await connection.execute(
-      `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
-       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'files'`,
-      [DEFAULT_CONFIG.database]
-    );
-    const existingColumns = (columns as any[]).map(col => col.COLUMN_NAME);
-    console.log('Existing columns:', existingColumns);
-
-    const columnDefinitions = [
-      { name: 'created_time', def: `DATETIME DEFAULT CURRENT_TIMESTAMP` },
-      { name: 'accessed_time', def: `DATETIME DEFAULT CURRENT_TIMESTAMP` },
-      { name: 'hash', def: `VARCHAR(32) DEFAULT ''` },
-      { name: 'is_hidden', def: `BOOLEAN DEFAULT FALSE` },
-      { name: 'is_readonly', def: `BOOLEAN DEFAULT FALSE` },
-      { name: 'is_system', def: `BOOLEAN DEFAULT FALSE` },
-      { name: 'attributes', def: `VARCHAR(100) DEFAULT ''` }
-    ];
-
-    for (const col of columnDefinitions) {
-      if (!existingColumns.includes(col.name)) {
-        try {
-          await connection.execute(`ALTER TABLE files ADD COLUMN ${col.name} ${col.def}`);
-          console.log(`Migration: Added column ${col.name}`);
-        } catch (err: any) {
-          console.warn(`Migration warning for ${col.name}:`, err.message);
-        }
-      } else {
-        console.log(`Migration: Column ${col.name} already exists`);
-      }
-    }
+    // 强制同步 files 表结构
+    await syncTableSchema(connection, DEFAULT_CONFIG.database, 'files', [
+      { name: 'id', def: 'INT AUTO_INCREMENT PRIMARY KEY', required: true },
+      { name: 'name', def: 'VARCHAR(255) NOT NULL', required: true },
+      { name: 'path', def: 'VARCHAR(500) NOT NULL', required: true },
+      { name: 'extension', def: 'VARCHAR(50) NOT NULL', required: true },
+      { name: 'size', def: 'BIGINT DEFAULT 0', required: true },
+      { name: 'created_time', def: 'DATETIME DEFAULT CURRENT_TIMESTAMP', required: true },
+      { name: 'modified_time', def: 'DATETIME DEFAULT CURRENT_TIMESTAMP', required: true },
+      { name: 'accessed_time', def: 'DATETIME DEFAULT CURRENT_TIMESTAMP', required: true },
+      { name: 'hash', def: "VARCHAR(32) DEFAULT ''", required: true },
+      { name: 'is_hidden', def: 'BOOLEAN DEFAULT FALSE', required: true },
+      { name: 'is_readonly', def: 'BOOLEAN DEFAULT FALSE', required: true },
+      { name: 'is_system', def: 'BOOLEAN DEFAULT FALSE', required: true },
+      { name: 'attributes', def: "VARCHAR(100) DEFAULT ''", required: true },
+      { name: 'scan_directory_id', def: "INT DEFAULT NULL COMMENT '文件所属的扫描目录ID'", required: true },
+      { name: 'created_at', def: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP', required: true },
+      { name: 'updated_at', def: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', required: true }
+    ]);
 
     // 添加索引
     const indexDefinitions = [
       { name: 'idx_created_time', def: `CREATE INDEX idx_created_time ON files(created_time)` },
       { name: 'idx_hash', def: `CREATE INDEX idx_hash ON files(hash)` },
-      { name: 'idx_is_hidden', def: `CREATE INDEX idx_is_hidden ON files(is_hidden)` }
+      { name: 'idx_is_hidden', def: `CREATE INDEX idx_is_hidden ON files(is_hidden)` },
+      { name: 'idx_scan_directory_id', def: `CREATE INDEX idx_scan_directory_id ON files(scan_directory_id)` }
     ];
 
     // 获取现有索引
@@ -324,4 +338,81 @@ export async function initializeDatabase(): Promise<void> {
       await connection.end();
     }
   }
+}
+
+/**
+ * 同步表结构 - 强制将表结构同步为期望的状态
+ * @param connection - 数据库连接
+ * @param database - 数据库名
+ * @param tableName - 表名
+ * @param expectedColumns - 期望的列定义
+ */
+async function syncTableSchema(
+  connection: mysql.Connection,
+  database: string,
+  tableName: string,
+  expectedColumns: ColumnDef[]
+): Promise<void> {
+  console.log(`[Sync] Starting schema sync for table: ${tableName}`);
+  
+  // 获取现有列
+  const [columns] = await connection.execute(
+    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+    [database, tableName]
+  );
+  const existingColumns = (columns as any[]).map(col => col.COLUMN_NAME);
+  console.log(`[Sync] Existing columns in ${tableName}:`, existingColumns);
+  
+  // 获取现有索引
+  const [indexes] = await connection.execute(
+    `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS 
+     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
+    [database, tableName]
+  );
+  const existingIndexes = (indexes as any[]).map(idx => idx.INDEX_NAME);
+  
+  // 1. 添加缺失的列
+  for (const col of expectedColumns) {
+    if (!existingColumns.includes(col.name)) {
+      try {
+        await connection.execute(`ALTER TABLE ${tableName} ADD COLUMN ${col.name} ${col.def}`);
+        console.log(`[Sync] Added column: ${col.name}`);
+      } catch (err: any) {
+        console.warn(`[Sync] Warning adding column ${col.name}:`, err.message);
+      }
+    }
+  }
+  
+  // 2. 删除多余的列（非必需列）
+  const expectedColumnNames = expectedColumns.map(col => col.name);
+  for (const existingCol of existingColumns) {
+    if (!expectedColumnNames.includes(existingCol)) {
+      try {
+        // 先删除该列上的所有索引
+        const colIndexes = existingIndexes.filter(idx => 
+          idx.toLowerCase() === `idx_${existingCol}`.toLowerCase() ||
+          idx.toLowerCase().includes(existingCol.toLowerCase())
+        );
+        for (const idxName of colIndexes) {
+          if (idxName !== 'PRIMARY') {
+            try {
+              await connection.execute(`ALTER TABLE ${tableName} DROP INDEX ${idxName}`);
+              console.log(`[Sync] Dropped index: ${idxName}`);
+            } catch (idxErr: any) {
+              console.warn(`[Sync] Warning dropping index ${idxName}:`, idxErr.message);
+            }
+          }
+        }
+        
+        // 删除列
+        await connection.execute(`ALTER TABLE ${tableName} DROP COLUMN ${existingCol}`);
+        console.log(`[Sync] Removed column: ${existingCol}`);
+      } catch (err: any) {
+        console.warn(`[Sync] Warning removing column ${existingCol}:`, err.message);
+      }
+    }
+  }
+  
+  console.log(`[Sync] Schema sync completed for table: ${tableName}`);
 }

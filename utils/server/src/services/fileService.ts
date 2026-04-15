@@ -17,6 +17,7 @@ export interface FileResult {
   is_readonly: boolean;
   is_system: boolean;
   attributes: string;
+  scan_directory_id?: number;
 }
 
 export interface SearchResult {

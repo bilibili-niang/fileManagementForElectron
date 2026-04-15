@@ -39,6 +39,7 @@ export interface FileInfo {
   is_readonly: boolean;
   is_system: boolean;
   attributes: string;
+  scan_directory_id?: number;
 }
 
 interface IndexProgress {
@@ -55,6 +56,8 @@ export class FileIndexer {
   private indexedCount: number = 0;
   private totalFiles: number = 0;
   private currentPath: string = '';
+  private currentScanRoot: string = '';  // 当前扫描的根目录
+  private currentScanDirectoryId: number = 0;  // 当前扫描目录的数据库ID
   private onProgress?: (progress: IndexProgress) => void;
   private readonly concurrency: number;
   private indexedPaths: Set<string> = new Set();
@@ -105,9 +108,8 @@ export class FileIndexer {
         await this.loadIndexedPaths();
       }
 
-      // 直接扫描并索引文件，边扫描边处理
+      // 扫描并索引文件，边扫描边更新进度
       console.log('Scanning and indexing files...');
-      let totalFilesFound = 0;
       for (const root of roots) {
         if (!this.isIndexing) break;
         let normalizedRoot = root;
@@ -115,12 +117,31 @@ export class FileIndexer {
           normalizedRoot = normalizedRoot + '\\';
         }
         normalizedRoot = path.normalize(normalizedRoot);
-        writeLog(`[startIndexing] Scanning root: ${root} -> ${normalizedRoot}`);
-        const rootFileCount = await this.scanAndIndexFiles(normalizedRoot, options);
-        totalFilesFound += rootFileCount;
+        // 设置当前扫描根目录
+        this.currentScanRoot = normalizedRoot;
+        
+        // 获取或创建扫描目录的数据库ID
+        let scanDirId = await this.dbService.getScanDirectoryIdByPath(normalizedRoot);
+        if (!scanDirId) {
+          // 如果目录不存在，先保存扫描目录配置
+          await this.dbService.setScanRoots([normalizedRoot]);
+          scanDirId = await this.dbService.getScanDirectoryIdByPath(normalizedRoot);
+        }
+        this.currentScanDirectoryId = scanDirId || 0;
+        
+        writeLog(`[startIndexing] Scanning root: ${root} -> ${normalizedRoot}, scan_directory_id: ${this.currentScanDirectoryId}`);
+        await this.scanAndIndexFiles(normalizedRoot, options);
+        
+        // 更新扫描目录的统计信息
+        if (this.currentScanDirectoryId) {
+          await this.dbService.updateScanDirectoryStats(this.currentScanDirectoryId, this.indexedCount);
+        }
       }
-      this.totalFiles = totalFilesFound;
-      console.log(`Total files found and indexed: ${this.totalFiles}`);
+      // 如果没有文件需要索引，设置 totalFiles 为 indexedCount
+      if (this.totalFiles === 0) {
+        this.totalFiles = this.indexedCount;
+      }
+      console.log(`Total files indexed: ${this.indexedCount}`);
 
       console.log(`Indexing completed. Total files indexed: ${this.indexedCount}`);
     } catch (error) {
@@ -289,7 +310,6 @@ export class FileIndexer {
           
           const normalizedPath = path.normalize(fullPath);
           const isNewFile = !this.indexedPaths.has(normalizedPath);
-          const isTextFile = this.contentIndexer.isTextFile(fullPath);
           
           // 检查文件修改时间是否发生变化
           let isModified = false;
@@ -306,9 +326,12 @@ export class FileIndexer {
             }
           }
           
-          if (isNewFile || isModified || isTextFile) {
+          // 所有新文件或修改过的文件都需要索引（不只是文本文件）
+          if (isNewFile || isModified) {
             filesToIndex.push(fullPath);
             fileCount++;
+            // 动态更新总文件数
+            this.totalFiles++;
           }
         }
       }
@@ -334,8 +357,8 @@ export class FileIndexer {
             })
           );
 
-          // 每 100 个文件报告一次进度
-          if (this.indexedCount % batchSize === 0 && this.onProgress) {
+          // 每 10 个文件报告一次进度
+          if (this.indexedCount % 10 === 0 && this.onProgress) {
             this.onProgress({
               progress: this.totalFiles > 0 ? this.indexedCount / this.totalFiles : 0,
               currentPath: this.currentPath,
@@ -470,7 +493,8 @@ export class FileIndexer {
         is_hidden: isHidden,
         is_readonly: isReadonly,
         is_system: isSystem,
-        attributes: attributes
+        attributes: attributes,
+        scan_directory_id: this.currentScanDirectoryId
       };
 
       // 检查文件是否已存在
