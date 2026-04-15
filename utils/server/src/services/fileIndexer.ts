@@ -40,6 +40,7 @@ export interface FileInfo {
   is_system: boolean;
   attributes: string;
   scan_directory_id?: number;
+  duration?: number;  // 新增：视频/音频时长（秒）
 }
 
 interface IndexProgress {
@@ -481,6 +482,17 @@ export class FileIndexer {
         console.warn(`[FileIndexer] Failed to get attributes for ${filePath}:`, attrError);
       }
 
+      // 获取视频/音频时长
+      let duration: number | undefined = undefined;
+      const mediaExtensions = ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'];
+      if (mediaExtensions.includes(ext)) {
+        try {
+          duration = await this.getMediaDuration(filePath);
+        } catch (e) {
+          console.warn(`[FileIndexer] Failed to get duration for ${filePath}:`, e);
+        }
+      }
+
       const fileInfo: FileInfo = {
         name: fileName,
         path: dirPath,
@@ -494,7 +506,8 @@ export class FileIndexer {
         is_readonly: isReadonly,
         is_system: isSystem,
         attributes: attributes,
-        scan_directory_id: this.currentScanDirectoryId
+        scan_directory_id: this.currentScanDirectoryId,
+        duration: duration
       };
 
       // 检查文件是否已存在
@@ -537,5 +550,27 @@ export class FileIndexer {
       console.warn(`Error indexing file ${filePath}:`, error);
       // 记录警告而不是抛出异常，确保索引过程继续执行
     }
+  }
+
+  // 获取媒体文件时长
+  private async getMediaDuration(filePath: string): Promise<number> {
+    // 使用文件大小估算时长（简化处理）
+    // 实际项目中建议使用 fluent-ffmpeg 获取准确时长
+    const stats = await fs.stat(filePath);
+    const ext = path.extname(filePath).toLowerCase().replace('.', '');
+    
+    // 视频文件平均码率估算
+    const videoBitrate = 5000000; // 5 Mbps
+    const audioBitrate = 128000;  // 128 kbps
+    
+    if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) {
+      // 估算视频时长（秒）
+      return Math.round(stats.size * 8 / (videoBitrate + audioBitrate));
+    } else if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'].includes(ext)) {
+      // 估算音频时长（秒）
+      return Math.round(stats.size * 8 / audioBitrate);
+    }
+    
+    return 0;
   }
 }

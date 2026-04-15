@@ -936,3 +936,34 @@ ipcMain.handle('add-debug-log', async (_event, component, message, data) => {
   logger.info(`[Debug] ${component}: ${message}`, data)
   return { success: true }
 })
+
+// ==================== 文件列表功能 API ====================
+
+// 按时长搜索文件
+ipcMain.handle('search-files-by-duration', async (_event, minDuration, maxDuration, page, pageSize) => {
+  try {
+    const result = await makeRequest({
+      path: '/api/search/duration',
+      params: { minDuration, maxDuration, page, pageSize }
+    })
+    return { success: true, ...result }
+  } catch (error) {
+    logger.error('Search files by duration error:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})
+
+// 批量删除文件
+ipcMain.handle('batch-delete-files', async (_event, fileIds) => {
+  try {
+    const result = await makeRequest({
+      path: '/api/files/batch-delete',
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' }
+    }, { fileIds })
+    return { success: true, ...result }
+  } catch (error) {
+    logger.error('Batch delete files error:', error)
+    return { success: false, error: error instanceof Error ? error.message : String(error) }
+  }
+})

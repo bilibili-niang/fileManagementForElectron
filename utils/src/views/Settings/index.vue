@@ -252,6 +252,7 @@
                   @click="startIndex"
                   :loading="indexing"
                   :disabled="indexing"
+                  density="comfortable"
               >
                 开始索引
               </v-btn>

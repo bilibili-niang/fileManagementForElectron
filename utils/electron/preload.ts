@@ -30,5 +30,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   saveScanRoots: (roots: string[]) => ipcRenderer.invoke('save-scan-roots', roots),
   selectDirectory: () => ipcRenderer.invoke('select-directory'),
   openFile: (filePath: string) => ipcRenderer.invoke('open-file', filePath),
-  showItemInFolder: (filePath: string) => ipcRenderer.invoke('show-item-in-folder', filePath)
+  showItemInFolder: (filePath: string) => ipcRenderer.invoke('show-item-in-folder', filePath),
+  // 按时长搜索文件
+  searchFilesByDuration: (minDuration?: number, maxDuration?: number, page?: number, pageSize?: number) =>
+    ipcRenderer.invoke('search-files-by-duration', minDuration, maxDuration, page, pageSize),
+  // 批量删除文件
+  batchDeleteFiles: (fileIds: number[]) => ipcRenderer.invoke('batch-delete-files', fileIds),
 })

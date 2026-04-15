@@ -8,6 +8,7 @@
       <v-tabs v-model="activeTab" bg-color="transparent" density="compact" class="app-tabs" hide-slider>
         <v-tab value="qrcode" class="text-caption app-tab">二维码生成</v-tab>
         <v-tab value="category" class="text-caption app-tab">分类浏览</v-tab>
+        <v-tab value="filelist" class="text-caption app-tab">文件列表</v-tab>
         <v-tab value="search" class="text-caption app-tab">文件搜索</v-tab>
         <v-tab value="network" class="text-caption app-tab">网络模拟</v-tab>
         <v-tab value="settings" class="text-caption app-tab">设置</v-tab>
@@ -23,6 +24,10 @@
 
           <v-window-item value="category">
             <FileCategory/>
+          </v-window-item>
+
+          <v-window-item value="filelist">
+            <FileList/>
           </v-window-item>
 
           <v-window-item value="search">
@@ -98,6 +103,7 @@ import {ref, onMounted, provide, watch} from 'vue'
 import {useTheme} from 'vuetify'
 import FileSearch from '@/views/FileSearch/index.vue'
 import FileCategory from '@/views/FileCategory/index.vue'
+import FileList from '@/views/FileList/index.vue'
 import Settings from '@/views/Settings/index.vue'
 import QrCodeGenerator from '@/views/QrCodeGenerator/index.vue'
 import NetworkMock from '@/views/NetworkMock/index.vue'

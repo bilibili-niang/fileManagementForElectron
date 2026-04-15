@@ -29,6 +29,10 @@ export interface ElectronAPI {
   parseDocx: (filePath: string) => Promise<any>;
   saveFile: (filePath: string, content: string) => Promise<any>;
   showItemInFolder: (filePath: string) => Promise<any>;
+  // 按时长搜索文件
+  searchFilesByDuration: (minDuration?: number, maxDuration?: number, page?: number, pageSize?: number) => Promise<any>;
+  // 批量删除文件
+  batchDeleteFiles: (fileIds: number[]) => Promise<any>;
 }
 
 declare global {

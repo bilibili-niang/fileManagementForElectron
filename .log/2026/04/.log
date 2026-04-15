@@ -1,0 +1,110 @@
+C:\nvm4w\nodejs\npm.cmd run electron:dev
+
+> super-utils@1.0.0 electron:dev
+> concurrently "vite" "wait-on http://localhost:5173 && electron ."
+
+[0] The CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.
+[0]
+[0]   VITE v5.4.21  ready in 1171 ms
+[0]
+[0]   ➜  Local:   http://localhost:5173/
+[0]   ➜  Network: use --host to expose
+[1]
+[1] Log directory: R:\utils-master\.log\2026\04\15
+[1] Log file: R:\utils-master\.log\2026\04\15\electron-1776265309437.log
+[1] [2026-04-15T15:01:50.083Z] [INFO] Starting backend server...
+[1] [2026-04-15T15:01:50.085Z] [INFO] Environment: development
+[1] [2026-04-15T15:01:50.086Z] [INFO] Server directory: R:\utils-master\utils\server
+[1] [54400:0415/230150.757:ERROR:CONSOLE(1)] "Request Autofill.enable failed. {"code":-32601,"message":"'Autofill.enable' wasn't found"}", source: devtools://devtools/bundled/core/protocol_client/protocol_client.js (1)
+[1] [54400:0415/230150.757:ERROR:CONSOLE(1)] "Request Autofill.setAddresses failed. {"code":-32601,"message":"'Autofill.setAddresses' wasn't found"}", source: devtools://devtools/bundled/core/protocol_client/protocol_client.js (1)
+[1] [2026-04-15T15:01:51.733Z] [INFO] Command: node node_modules/tsx/dist/cli.mjs src/index.ts
+[1] [2026-04-15T15:01:51.734Z] [INFO] Server directory: R:\utils-master\utils\server
+[1] [2026-04-15T15:01:51.837Z] [INFO] Backend process spawned successfully, PID: 6212
+[1] [2026-04-15T15:01:52.429Z] [ERROR] Load config error: {"code":"ECONNREFUSED"}
+[1] [2026-04-15T15:01:52.517Z] [ERROR] Load config error: {"code":"ECONNREFUSED"}
+[1] [2026-04-15T15:01:52.521Z] [ERROR] Load config error: {"code":"ECONNREFUSED"}
+[1] [2026-04-15T15:01:52.605Z] [ERROR] Health check error: {"code":"ECONNREFUSED"}
+[1] [2026-04-15T15:01:52.609Z] [ERROR] Load config error: {"code":"ECONNREFUSED"}
+[1] [2026-04-15T15:01:53.578Z] [INFO] [Backend] FileIndexer initialized with concurrency: 4
+[1] [2026-04-15T15:01:53.685Z] [INFO] [Backend] Connected to MySQL server
+[1] [2026-04-15T15:01:53.716Z] [INFO] [Backend] Database 'superutils_file_manager' created or already exists
+[1] [2026-04-15T15:01:53.754Z] [INFO] [Backend] Table "scan_directories" created or already exists
+[1] [2026-04-15T15:01:53.764Z] [INFO] [Backend] Table "files" created or already exists
+[1] [2026-04-15T15:01:53.767Z] [INFO] [Backend] Table "app_config" created or already exists
+[1] [2026-04-15T15:01:53.770Z] [INFO] [Backend] Table "file_open_config" created or already exists
+[1] [2026-04-15T15:01:53.824Z] [INFO] [Backend] Default file open configs inserted
+[1] [2026-04-15T15:01:53.828Z] [INFO] [Backend] Table "file_contents" created or already exists
+[1] [2026-04-15T15:01:53.833Z] [INFO] [Backend] Table "index_exclude_rules" created or already exists
+[1] [2026-04-15T15:01:53.856Z] [INFO] [Backend] Default exclude rules inserted
+[1] [2026-04-15T15:01:53.859Z] [INFO] [Backend] Table "search_history" created or already exists
+[1] [2026-04-15T15:01:53.861Z] [INFO] [Backend] Table "debug_logs" created or already exists
+[1] [2026-04-15T15:01:53.863Z] [INFO] [Backend] Table "mock_routes" created or already exists
+[1] [2026-04-15T15:01:53.865Z] [INFO] [Backend] Table "window_state" created or already exists
+[1] [2026-04-15T15:01:53.866Z] [INFO] [Backend] [Sync] Starting schema sync for table: files
+[1] [2026-04-15T15:01:53.888Z] [INFO] [Backend] [Sync] Existing columns in files: [
+[1]   'accessed_time', 'attributes',
+[1]   'created_at',    'created_time',
+[1]   'extension',     'hash',
+[1]   'id',            'is_hidden',
+[1]   'is_readonly',   'is_system',
+[1]   'modified_time', 'name',
+[1]   'path',          'scan_directory_id',
+[1]   'size',          'updated_at'
+[1] ]
+[1] [2026-04-15T15:01:53.893Z] [INFO] [Backend] [Sync] Schema sync completed for table: files
+[1] [2026-04-15T15:01:53.895Z] [INFO] [Backend] Migration: Index idx_created_time already exists
+[1] Migration: Index idx_hash already exists
+[1] [2026-04-15T15:01:53.896Z] [INFO] [Backend] Migration: Index idx_is_hidden already exists
+[1] Migration: Index idx_scan_directory_id already exists
+[1] Database initialization completed successfully
+[1] [2026-04-15T15:01:53.902Z] [INFO] [Backend] Server started successfully on port 3000
+[1] Health check: http://localhost:3000/api/health
+[1] [2026-04-15T15:01:54.062Z] [INFO] [Backend] [Search History] Query params: { limit: 20, type: 'filename' }
+[1] [2026-04-15T15:01:54.063Z] [INFO] [Backend] [getSearchHistory] SQL: SELECT id, query, search_type, result_count, created_at
+[1]                FROM search_history WHERE search_type = ? ORDER BY created_at DESC LIMIT ?
+[1] [getSearchHistory] Params: [ 'filename', 20 ]
+[1] [2026-04-15T15:01:54.065Z] [INFO] [Backend] [Search History] Query params: { limit: 20, type: 'content' }
+[1] [getSearchHistory] SQL: SELECT id, query, search_type, result_count, created_at
+[1]                FROM search_history WHERE search_type = ? ORDER BY created_at DESC LIMIT ?
+[1] [2026-04-15T15:01:54.066Z] [INFO] [Backend] [getSearchHistory] Params: [ 'content', 20 ]
+[1] [2026-04-15T15:01:54.078Z] [ERROR] [Backend Error] Get search history error: Error: Incorrect arguments to mysqld_stmt_execute
+[1]     at PromisePool.execute (R:\utils-master\utils\server\node_modules\.pnpm\mysql2@3.16.3\node_modules\mysql2\lib\promise\pool.js:54:22)
+[1]     at DatabaseService.getSearchHistory (r:\utils-master\utils\server\src\services\databaseService.ts:891:39)
+[1]     at <anonymous> (r:\utils-master\utils\server\src\routes\config.ts:204:37)
+[1]     at Layer.handle [as handle_request] (R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\layer.js:95:5)
+[1]     at next (R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\route.js:149:13)
+[1]     at Route.dispatch (R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\route.js:119:3)
+[1]     at Layer.handle [as handle_request] (R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\layer.js:95:5)
+[1]     at R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\index.js:284:15
+[1]     at Function.process_params (R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\index.js:346:12)
+[1]     at next (R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\index.js:280:10) {
+[1]   code: 'ER_WRONG_ARGUMENTS',
+[1]   errno: 1210,
+[1]   sql: 'SELECT id, query, search_type, result_count, created_at \n' +
+[1]     '               FROM search_history WHERE search_type = ? ORDER BY created_at DESC LIMIT ?',
+[1]   sqlState: 'HY000',
+[1]   sqlMessage: 'Incorrect arguments to mysqld_stmt_execute'
+[1] }
+[1] [2026-04-15T15:01:54.082Z] [ERROR] [Backend Error] Get search history error: Error: Incorrect arguments to mysqld_stmt_execute
+[1]     at PromisePool.execute (R:\utils-master\utils\server\node_modules\.pnpm\mysql2@3.16.3\node_modules\mysql2\lib\promise\pool.js:54:22)
+[1]     at DatabaseService.getSearchHistory (r:\utils-master\utils\server\src\services\databaseService.ts:891:39)
+[1]     at <anonymous> (r:\utils-master\utils\server\src\routes\config.ts:204:37)
+[1]     at Layer.handle [as handle_request] (R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\layer.js:95:5)
+[1]     at next (R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\route.js:149:13)
+[1]     at Route.dispatch (R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\route.js:119:3)
+[1]     at Layer.handle [as handle_request] (R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\layer.js:95:5)
+[1]     at R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\index.js:284:15
+[1]     at Function.process_params (R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\index.js:346:12)
+[1]     at next (R:\utils-master\utils\server\node_modules\.pnpm\express@4.22.1\node_modules\express\lib\router\index.js:280:10) {
+[1]   code: 'ER_WRONG_ARGUMENTS',
+[1]   errno: 1210,
+[1]   sql: 'SELECT id, query, search_type, result_count, created_at \n' +
+[1]     '               FROM search_history WHERE search_type = ? ORDER BY created_at DESC LIMIT ?',
+[1]   sqlState: 'HY000',
+[1]   sqlMessage: 'Incorrect arguments to mysqld_stmt_execute'
+[1] }
+[1] [2026-04-15T15:01:54.368Z] [INFO] Backend service is ready
+[1] [2026-04-15T15:01:54.369Z] [INFO] Backend server started successfully
+[1] [2026-04-15T15:01:54.369Z] [INFO] Backend server started successfully
+
+

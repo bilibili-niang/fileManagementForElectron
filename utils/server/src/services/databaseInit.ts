@@ -82,6 +82,7 @@ export async function initializeDatabase(): Promise<void> {
         is_system BOOLEAN DEFAULT FALSE,
         attributes VARCHAR(100) DEFAULT '',
         scan_directory_id INT DEFAULT NULL COMMENT '文件所属的扫描目录ID',
+        duration INT DEFAULT NULL COMMENT '视频/音频时长（秒）',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
         INDEX idx_name (name),
@@ -92,6 +93,7 @@ export async function initializeDatabase(): Promise<void> {
         INDEX idx_hash (hash),
         INDEX idx_is_hidden (is_hidden),
         INDEX idx_scan_directory_id (scan_directory_id),
+        INDEX idx_duration (duration),
         UNIQUE KEY unique_file (path, name),
         FOREIGN KEY (scan_directory_id) REFERENCES scan_directories(id) ON DELETE CASCADE
       ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
@@ -295,6 +297,7 @@ export async function initializeDatabase(): Promise<void> {
       { name: 'is_system', def: 'BOOLEAN DEFAULT FALSE', required: true },
       { name: 'attributes', def: "VARCHAR(100) DEFAULT ''", required: true },
       { name: 'scan_directory_id', def: "INT DEFAULT NULL COMMENT '文件所属的扫描目录ID'", required: true },
+      { name: 'duration', def: "INT DEFAULT NULL COMMENT '视频/音频时长（秒）'", required: true },
       { name: 'created_at', def: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP', required: true },
       { name: 'updated_at', def: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', required: true }
     ]);
@@ -304,7 +307,8 @@ export async function initializeDatabase(): Promise<void> {
       { name: 'idx_created_time', def: `CREATE INDEX idx_created_time ON files(created_time)` },
       { name: 'idx_hash', def: `CREATE INDEX idx_hash ON files(hash)` },
       { name: 'idx_is_hidden', def: `CREATE INDEX idx_is_hidden ON files(is_hidden)` },
-      { name: 'idx_scan_directory_id', def: `CREATE INDEX idx_scan_directory_id ON files(scan_directory_id)` }
+      { name: 'idx_scan_directory_id', def: `CREATE INDEX idx_scan_directory_id ON files(scan_directory_id)` },
+      { name: 'idx_duration', def: `CREATE INDEX idx_duration ON files(duration)` }
     ];
 
     // 获取现有索引

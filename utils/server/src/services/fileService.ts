@@ -18,6 +18,7 @@ export interface FileResult {
   is_system: boolean;
   attributes: string;
   scan_directory_id?: number;
+  duration?: number;  // 新增：视频/音频时长（秒）
 }
 
 export interface SearchResult {

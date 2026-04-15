@@ -129,5 +129,42 @@ export const searchApi = {
       { path: '/api/files/counts' },
       { channel: 'getFileCounts' }
     )
+  },
+
+  /**
+   * 按时长筛选搜索文件
+   * @param minDuration - 最小时长（秒）
+   * @param maxDuration - 最大时长（秒）
+   * @param page - 页码
+   * @param pageSize - 每页数量
+   */
+  async searchFilesByDuration(
+    minDuration?: number,
+    maxDuration?: number,
+    page: number = 1,
+    pageSize: number = 50
+  ): Promise<SearchResult> {
+    return request(
+      {
+        path: '/api/search/duration',
+        params: { minDuration, maxDuration, page, pageSize }
+      },
+      { channel: 'searchFilesByDuration', args: [minDuration, maxDuration, page, pageSize] }
+    )
+  },
+
+  /**
+   * 批量删除文件
+   * @param fileIds - 文件ID数组
+   */
+  async batchDeleteFiles(fileIds: number[]): Promise<{ deletedCount: number }> {
+    return request(
+      {
+        path: '/api/files/batch-delete',
+        method: 'POST',
+        body: { fileIds }
+      },
+      { channel: 'batchDeleteFiles', args: [fileIds] }
+    )
   }
 }

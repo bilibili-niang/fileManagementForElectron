@@ -12,6 +12,7 @@ export interface FileResult {
   modified_time: string
   contentPreview?: string
   matchCount?: number
+  duration?: number  // 新增：视频/音频时长（秒）
 }
 
 /**
@@ -26,6 +27,17 @@ export interface SearchOptions {
   fileType?: string
   minSize?: number
   maxSize?: number
+  minDuration?: number  // 新增：最小时长（秒）
+  maxDuration?: number  // 新增：最大时长（秒）
+}
+
+/**
+ * 批量操作请求
+ */
+export interface BatchOperationRequest {
+  fileIds: number[]
+  operation: 'delete' | 'copy' | 'move'
+  targetPath?: string  // 复制/移动的目标路径
 }
 
 /**

@@ -1,0 +1,22 @@
+// FileList 样式文件
+// 主要样式已在 Vue 文件的 scoped style 中定义
+// 此处可添加额外的全局样式或覆盖样式
+
+.file-list-container {
+  // 确保表格行高一致
+  :deep(.v-data-table__tr) {
+    height: 48px;
+  }
+  
+  // 选中行样式
+  :deep(.v-data-table__tr--selected) {
+    background-color: rgba(var(--v-theme-primary), 0.08);
+  }
+  
+  // 复选框列样式
+  :deep(.v-data-table__th--checkbox),
+  :deep(.v-data-table__td--checkbox) {
+    width: 48px;
+    min-width: 48px;
+  }
+}

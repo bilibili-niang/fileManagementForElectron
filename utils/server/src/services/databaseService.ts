@@ -259,14 +259,14 @@ export class DatabaseService {
   }
 
   // 添加文件到数据库，返回文件 ID
-  async addFile(file: Omit<FileResult, 'id'>): Promise<number> {
+  async addFile(file: Omit<FileResult, 'id'> & { duration?: number }): Promise<number> {
     if (!this.pool) {
       throw new Error('Database not initialized');
     }
 
     const [result] = await this.pool.execute(
-      `INSERT INTO files (name, path, extension, size, created_time, modified_time, accessed_time, hash, is_hidden, is_readonly, is_system, attributes, scan_directory_id) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      `INSERT INTO files (name, path, extension, size, created_time, modified_time, accessed_time, hash, is_hidden, is_readonly, is_system, attributes, scan_directory_id, duration) 
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
        ON DUPLICATE KEY UPDATE 
        size = VALUES(size), 
        created_time = VALUES(created_time),
@@ -277,9 +277,10 @@ export class DatabaseService {
        is_readonly = VALUES(is_readonly),
        is_system = VALUES(is_system),
        attributes = VALUES(attributes),
-       scan_directory_id = VALUES(scan_directory_id)`,
+       scan_directory_id = VALUES(scan_directory_id),
+       duration = VALUES(duration)`,
       [file.name, file.path, file.extension, file.size, file.created_time, file.modified_time, file.accessed_time, file.hash, 
-       file.is_hidden, file.is_readonly, file.is_system, file.attributes, file.scan_directory_id || null]
+       file.is_hidden, file.is_readonly, file.is_system, file.attributes, file.scan_directory_id || null, file.duration || null]
     );
 
     // 如果是新插入的记录，返回插入的 ID
@@ -471,6 +472,83 @@ export class DatabaseService {
     );
     
     console.log('DatabaseService: All data cleared');
+  }
+
+  // 按时长筛选搜索文件
+  async searchFilesByDuration(
+    minDuration?: number,
+    maxDuration?: number,
+    page: number = 1,
+    pageSize: number = 50
+  ): Promise<SearchResult> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    const offset = (page - 1) * pageSize;
+    const mediaExtensions = ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'];
+    const placeholders = mediaExtensions.map(() => '?').join(',');
+
+    let whereConditions: string[] = [`extension IN (${placeholders})`];
+    let params: any[] = [...mediaExtensions];
+
+    if (minDuration !== undefined) {
+      whereConditions.push('duration >= ?');
+      params.push(minDuration);
+    }
+    if (maxDuration !== undefined) {
+      whereConditions.push('duration <= ?');
+      params.push(maxDuration);
+    }
+
+    const whereClause = 'WHERE ' + whereConditions.join(' AND ');
+
+    const [rows] = await this.pool.query(
+      `SELECT * FROM files 
+       ${whereClause}
+       ORDER BY duration DESC 
+       LIMIT ${parseInt(pageSize as any)} OFFSET ${parseInt(offset as any)}`,
+      params
+    );
+
+    const [countRows] = await this.pool.execute(
+      `SELECT COUNT(*) as total FROM files ${whereClause}`,
+      params
+    );
+
+    const total = (countRows as any[])[0].total;
+    const totalPages = Math.ceil(total / pageSize);
+
+    return {
+      files: rows as FileResult[],
+      totalPages,
+      currentPage: page
+    };
+  }
+
+  // 批量删除文件
+  async deleteFiles(fileIds: number[]): Promise<number> {
+    if (!this.pool) {
+      throw new Error('Database not initialized');
+    }
+
+    if (fileIds.length === 0) return 0;
+
+    const placeholders = fileIds.map(() => '?').join(',');
+    
+    // 先删除关联的内容索引
+    await this.pool.execute(
+      `DELETE FROM file_contents WHERE file_id IN (${placeholders})`,
+      fileIds
+    );
+
+    // 删除文件记录
+    const [result] = await this.pool.execute(
+      `DELETE FROM files WHERE id IN (${placeholders})`,
+      fileIds
+    );
+
+    return (result as any).affectedRows || 0;
   }
 
   // 获取文件打开方式配置
@@ -883,7 +961,7 @@ export class DatabaseService {
     }
 
     sql += ' ORDER BY created_at DESC LIMIT ?';
-    params.push(Math.floor(limit));
+    params.push(Number(limit));
 
     console.log('[getSearchHistory] SQL:', sql);
     console.log('[getSearchHistory] Params:', params);
