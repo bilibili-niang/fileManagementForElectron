@@ -9,9 +9,9 @@
   "indexing": {
     "excludeC": true,
     "excludeNodeModules": true,
-    "lastIndexed": "2026-04-14T15:45:52.482Z",
+    "lastIndexed": null,
     "schedule": "0 20 * * *"
   },
   "theme": "dark",
-  "activeTab": "search"
+  "activeTab": "settings"
 }

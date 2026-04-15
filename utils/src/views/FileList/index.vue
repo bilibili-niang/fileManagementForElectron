@@ -50,58 +50,58 @@
               <v-col cols="4">
                 <v-card-title class="text-h6">{{ getViewTitle }}</v-card-title>
               </v-col>
-              <v-col cols="8" class="text-right">
-                <!-- 批量操作按钮 -->
-                <v-btn
-                  v-if="selectedFiles.length > 0"
-                  color="error"
-                  variant="outlined"
-                  size="small"
-                  class="mr-2"
-                  @click="confirmBatchDelete"
-                >
-                  <v-icon icon="mdi-delete" size="small" class="mr-1"></v-icon>
-                  删除选中 ({{ selectedFiles.length }})
-                </v-btn>
-                <v-btn
-                  v-if="selectedFiles.length > 0"
-                  variant="outlined"
-                  size="small"
-                  class="mr-2"
-                  @click="clearSelection"
-                >
-                  取消选择
-                </v-btn>
-                
-                <!-- 时长筛选（仅在媒体视图显示） -->
-                <template v-if="currentViewMode === 'media'">
+              <v-col cols="8">
+                <div class="toolbar-right">
+                  <!-- 批量操作按钮 -->
+                  <v-btn
+                    v-if="selectedFiles.length > 0"
+                    color="error"
+                    variant="outlined"
+                    size="small"
+                    class="mr-2"
+                    @click="confirmBatchDelete"
+                  >
+                    <v-icon icon="mdi-delete" size="small" class="mr-1"></v-icon>
+                    删除选中 ({{ selectedFiles.length }})
+                  </v-btn>
+                  <v-btn
+                    v-if="selectedFiles.length > 0"
+                    variant="outlined"
+                    size="small"
+                    class="mr-2"
+                    @click="clearSelection"
+                  >
+                    取消选择
+                  </v-btn>
+                  
+                  <!-- 时长筛选（仅在媒体视图显示） -->
+                  <template v-if="currentViewMode === 'media'">
+                    <v-select
+                      v-model="durationFilter"
+                      :items="durationFilterOptions"
+                      item-title="title"
+                      item-value="value"
+                      label="时长筛选"
+                      variant="outlined"
+                      density="compact"
+                      hide-details
+                      class="duration-filter"
+                      @update:model-value="onDurationFilterChange"
+                    ></v-select>
+                  </template>
+
                   <v-select
-                    v-model="durationFilter"
-                    :items="durationFilterOptions"
+                    v-model="pageSize"
+                    :items="pageSizeOptions"
                     item-title="title"
                     item-value="value"
-                    label="时长筛选"
+                    label="每页"
                     variant="outlined"
                     density="compact"
                     hide-details
-                    class="duration-filter"
-                    style="display: inline-block; width: 150px;"
-                    @update:model-value="onDurationFilterChange"
+                    class="page-size-select ml-2"
                   ></v-select>
-                </template>
-
-                <v-select
-                  v-model="pageSize"
-                  :items="pageSizeOptions"
-                  item-title="title"
-                  item-value="value"
-                  label="每页"
-                  variant="outlined"
-                  density="compact"
-                  hide-details
-                  class="page-size-select ml-2"
-                  style="display: inline-block; width: 100px;"
-                ></v-select>
+                </div>
               </v-col>
             </v-row>
           </v-card-item>
@@ -416,10 +416,37 @@ async function executeBatchDelete() {
   }
 }
 
-// 打开文件
+// 打开文件 - 根据文件类型选择打开方式
 function openFile(item: FileResult) {
-  if (openFileEditor) {
-    openFileEditor(item.path, item.name)
+  const fullPath = `${item.path}\\${item.name}`
+  const ext = item.extension.toLowerCase()
+  
+  // 文本文件类型
+  const textExtensions = ['txt', 'md', 'json', 'xml', 'html', 'css', 'js', 'ts', 'vue', 'py', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'rs', 'php', 'rb', 'sh', 'bat', 'cmd', 'ps1', 'sql', 'yaml', 'yml', 'ini', 'conf', 'log']
+  
+  // 文档类型
+  const docExtensions = ['doc', 'docx', 'pdf', 'xls', 'xlsx', 'ppt', 'pptx']
+  
+  // 图片类型
+  const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico']
+  
+  // 视频类型
+  const videoExtensions = ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm']
+  
+  // 音频类型
+  const audioExtensions = ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a']
+  
+  if (textExtensions.includes(ext)) {
+    // 文本文件使用内置编辑器打开
+    if (openFileEditor) {
+      openFileEditor(item.path, item.name)
+    }
+  } else if (docExtensions.includes(ext) || imageExtensions.includes(ext) || videoExtensions.includes(ext) || audioExtensions.includes(ext)) {
+    // 文档、图片、视频、音频使用系统默认程序打开
+    window.electronAPI.openFile(fullPath)
+  } else {
+    // 其他文件询问用户或使用系统默认程序
+    window.electronAPI.openFile(fullPath)
   }
 }
 
@@ -602,6 +629,20 @@ onMounted(() => {
     white-space: nowrap;
     color: rgba(0, 0, 0, 0.6);
   }
+}
+
+.toolbar-right {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+}
+
+.duration-filter {
+  width: 150px;
+}
+
+.page-size-select {
+  width: 100px;
 }
 
 .duration-filter,

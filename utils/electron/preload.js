@@ -62,6 +62,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // Debug log
   addDebugLog: (component, message, data) => ipcRenderer.invoke('add-debug-log', component, message, data),
 
+  // File list features
+  searchFilesByDuration: (minDuration, maxDuration, page, pageSize) => ipcRenderer.invoke('search-files-by-duration', minDuration, maxDuration, page, pageSize),
+  batchDeleteFiles: (fileIds) => ipcRenderer.invoke('batch-delete-files', fileIds),
+
   // Listeners
   onIndexProgress: (callback) => ipcRenderer.on('index-progress', callback),
   onIndexComplete: (callback) => ipcRenderer.on('index-complete', callback),

@@ -75,6 +75,56 @@
         :file-name="currentFile.name"
     />
 
+    <!-- 全局索引进度条 - 底部悬浮 -->
+    <v-slide-y-reverse-transition>
+      <v-card
+        v-if="isIndexing"
+        class="indexing-status-bar"
+        flat
+        density="compact"
+        @mouseenter="showIndexDetails = true"
+        @mouseleave="showIndexDetails = false"
+      >
+        <!-- 简洁模式 - 默认显示 -->
+        <v-card-text class="py-1 px-3">
+          <div class="d-flex align-center">
+            <v-icon icon="mdi-sync" class="mr-2 rotating" size="small"></v-icon>
+            <span class="text-caption mr-2">正在索引...</span>
+            <v-progress-linear
+              :model-value="indexProgress.progress"
+              height="4"
+              color="primary"
+              class="flex-grow-1"
+              striped
+              animated
+            ></v-progress-linear>
+            <span class="text-caption text-grey ml-2">{{ indexProgress.progress }}%</span>
+          </div>
+        </v-card-text>
+
+        <!-- 详情模式 - hover 显示 -->
+        <v-expand-transition>
+          <div v-show="showIndexDetails" class="index-details">
+            <v-divider></v-divider>
+            <v-card-text class="py-2 px-3">
+              <div class="d-flex justify-space-between text-caption mb-1">
+                <span class="text-grey">当前目录:</span>
+                <span class="text-truncate ml-2" style="max-width: 300px;">{{ indexProgress.currentDrive || '-' }}</span>
+              </div>
+              <div class="d-flex justify-space-between text-caption mb-1">
+                <span class="text-grey">当前文件:</span>
+                <span class="text-truncate ml-2" style="max-width: 300px;">{{ indexProgress.currentPath ? indexProgress.currentPath.split('\\').pop() : '-' }}</span>
+              </div>
+              <div class="d-flex justify-space-between text-caption">
+                <span class="text-grey">已索引:</span>
+                <span>{{ indexProgress.filesIndexed }} 个文件</span>
+              </div>
+            </v-card-text>
+          </div>
+        </v-expand-transition>
+      </v-card>
+    </v-slide-y-reverse-transition>
+
     <!-- 全局 Snackbar -->
     <v-snackbar
         v-model="snackbar.show"
@@ -402,6 +452,120 @@ watch(activeTab, (newTab) => {
   saveActiveTab(newTab)
 })
 
+// ==================== 索引状态管理 ====================
+const isIndexing = ref(false)
+const indexProgress = ref({
+  currentDrive: '',
+  progress: 0,
+  currentPath: '',
+  filesIndexed: 0
+})
+const indexComplete = ref(false)
+const indexStats = ref({
+  totalFiles: 0,
+  duration: 0
+})
+const showIndexDetails = ref(false)
+let indexProgressInterval: number | null = null
+
+// 提供索引状态给子组件
+provide('isIndexing', isIndexing)
+provide('indexProgress', indexProgress)
+provide('indexComplete', indexComplete)
+provide('indexStats', indexStats)
+
+// 轮询索引进度
+async function pollIndexingProgress() {
+  try {
+    const result = await window.electronAPI.getIndexingProgress()
+    console.log('[App] 索引进度:', result)
+    
+    if (result.isIndexing) {
+      isIndexing.value = true
+      indexProgress.value = {
+        currentDrive: result.currentDrive || '',
+        progress: Math.round(result.progress || 0),
+        currentPath: result.currentPath || '',
+        filesIndexed: result.filesIndexed || 0
+      }
+    } else if (isIndexing.value && !result.isIndexing) {
+      // 索引完成了
+      isIndexing.value = false
+      indexComplete.value = true
+      indexStats.value = {
+        totalFiles: result.totalFiles || 0,
+        duration: result.duration || 0
+      }
+      showSnackbar(`索引完成！共索引 ${result.totalFiles || 0} 个文件`, 'success')
+      
+      // 停止轮询
+      if (indexProgressInterval) {
+        clearInterval(indexProgressInterval)
+        indexProgressInterval = null
+      }
+    }
+  } catch (error) {
+    console.error('[App] 获取索引进度失败:', error)
+  }
+}
+
+// 开始索引
+async function startAutoIndex() {
+  try {
+    // 使用 getScanRoots 获取扫描目录
+    const scanRootsResult = await window.electronAPI.getScanRoots()
+    console.log('[App] 扫描目录配置:', scanRootsResult)
+    
+    // 兼容不同的返回格式
+    let roots: string[] = []
+    if (scanRootsResult && scanRootsResult.roots && Array.isArray(scanRootsResult.roots)) {
+      roots = scanRootsResult.roots
+    } else if (scanRootsResult && Array.isArray(scanRootsResult)) {
+      roots = scanRootsResult
+    }
+    
+    if (roots.length === 0) {
+      console.log('[App] 没有配置扫描目录，跳过自动索引')
+      return
+    }
+
+    console.log('[App] 开始自动索引，目录:', roots)
+    isIndexing.value = true
+    indexComplete.value = false
+    indexProgress.value = {
+      currentDrive: roots[0],
+      progress: 0,
+      currentPath: '',
+      filesIndexed: 0
+    }
+
+    // 先检查是否已经在索引中
+    const progressResult = await window.electronAPI.getIndexingProgress()
+    if (progressResult.isIndexing) {
+      console.log('[App] 索引已在进行中')
+      // 开始轮询进度
+      indexProgressInterval = window.setInterval(pollIndexingProgress, 1000)
+      return
+    }
+
+    // 调用开始索引
+    const result = await window.electronAPI.startIndex(roots)
+    if (result.success) {
+      console.log('[App] 索引已启动')
+      // 开始轮询进度
+      indexProgressInterval = window.setInterval(pollIndexingProgress, 1000)
+    } else {
+      console.error('[App] 启动索引失败:', result.error)
+      isIndexing.value = false
+      showSnackbar('启动索引失败: ' + (result.error || ''), 'error')
+    }
+  } catch (error) {
+    console.error('[App] 自动索引失败:', error)
+    isIndexing.value = false
+    showSnackbar('自动索引失败: ' + (error as Error).message, 'error')
+  }
+}
+
 onMounted(async () => {
   // 加载保存的 tab
   await loadSavedTab()
@@ -423,6 +587,9 @@ onMounted(async () => {
 
   // 跳过首次引导检查,直接显示主界面
   showWelcomeWizard.value = false
+
+  // 启动自动索引
+  await startAutoIndex()
 })
 </script>
 
@@ -549,5 +716,46 @@ body {
 :deep(.v-card-text) {
   overflow: visible;
   height: auto;
+}
+
+/* 索引进度条 - 底部悬浮 */
+.indexing-status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 1000;
+  background: rgba(var(--v-theme-surface), 0.95);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid rgba(0, 0, 0, 0.1);
+  border-radius: 8px 8px 0 0;
+  margin: 0 16px;
+  max-width: calc(100% - 32px);
+  box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.indexing-status-bar:hover {
+  background: rgba(var(--v-theme-surface), 1);
+  box-shadow: 0 -4px 12px rgba(0, 0, 0, 0.15);
+}
+
+.index-details {
+  background: rgba(var(--v-theme-surface-variant), 0.5);
+}
+
+/* 旋转动画 */
+@keyframes rotate {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.rotating {
+  animation: rotate 2s linear infinite;
 }
 </style>
