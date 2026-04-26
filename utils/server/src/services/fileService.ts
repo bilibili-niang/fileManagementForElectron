@@ -17,8 +17,6 @@ export interface FileResult {
   is_readonly: boolean;
   is_system: boolean;
   attributes: string;
-  scan_directory_id?: number;
-  duration?: number;  // 新增：视频/音频时长（秒）
 }
 
 export interface SearchResult {
@@ -106,11 +104,11 @@ export class FileService {
   }
 
   // 开始索引 - 立即返回，在后台运行
-  async startIndexing(roots: string[]): Promise<void> {
-    console.log('FileService: Starting indexing for roots:', roots);
+  async startIndexing(drives: string[]): Promise<void> {
+    console.log('FileService: Starting indexing for drives:', drives);
     
     // 在后台启动索引，不等待完成
-    this.fileIndexer.startIndexing(roots, {
+    this.fileIndexer.startIndexing(drives, {
       excludeNodeModules: true,
       onProgress: (progress) => {
         console.log(`Indexing progress: ${(progress.progress * 100).toFixed(1)}% - ${progress.currentPath}`);
@@ -160,7 +158,7 @@ export class FileService {
     openMethod: string,
     internalViewer: string | null
   ): Promise<void> {
-    await this.dbService.saveFileOpenConfig(extension, openMethod, internalViewer);
+    await this.dbService.saveFileOpenConfig(extension, openMethod, internalViewer || undefined);
   }
 
   // 删除文件打开方式配置

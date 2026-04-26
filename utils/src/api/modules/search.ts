@@ -132,39 +132,36 @@ export const searchApi = {
   },
 
   /**
-   * 按时长筛选搜索文件
-   * @param minDuration - 最小时长（秒）
-   * @param maxDuration - 最大时长（秒）
-   * @param page - 页码
-   * @param pageSize - 每页数量
+   * 获取搜索历史
+   * @param limit - 返回数量限制
    */
-  async searchFilesByDuration(
-    minDuration?: number,
-    maxDuration?: number,
-    page: number = 1,
-    pageSize: number = 50
-  ): Promise<SearchResult> {
+  async getSearchHistory(limit: number = 10): Promise<{ success: boolean; history: any[] }> {
     return request(
-      {
-        path: '/api/search/duration',
-        params: { minDuration, maxDuration, page, pageSize }
-      },
-      { channel: 'searchFilesByDuration', args: [minDuration, maxDuration, page, pageSize] }
+      { path: '/api/files/search/history', params: { limit: String(limit) } },
+      { channel: 'getSearchHistory', args: [limit] }
     )
   },
 
   /**
-   * 批量删除文件
-   * @param fileIds - 文件ID数组
+   * 保存搜索历史
+   * @param query - 搜索关键词
+   * @param searchType - 搜索类型
    */
-  async batchDeleteFiles(fileIds: number[]): Promise<{ deletedCount: number }> {
+  async saveSearchHistory(query: string, searchType: string): Promise<{ success: boolean }> {
     return request(
-      {
-        path: '/api/files/batch-delete',
-        method: 'POST',
-        body: { fileIds }
-      },
-      { channel: 'batchDeleteFiles', args: [fileIds] }
+      { path: '/api/files/search/history', method: 'POST', body: { query, searchType } },
+      { channel: 'saveSearchHistory', args: [query, searchType] }
+    )
+  },
+
+  /**
+   * 删除搜索历史
+   * @param id - 历史记录ID
+   */
+  async removeSearchHistory(id: number): Promise<{ success: boolean }> {
+    return request(
+      { path: `/api/files/search/history/${id}`, method: 'DELETE' },
+      { channel: 'removeSearchHistory', args: [id] }
     )
   }
 }

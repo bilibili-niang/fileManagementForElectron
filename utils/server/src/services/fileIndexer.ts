@@ -39,8 +39,6 @@ export interface FileInfo {
   is_readonly: boolean;
   is_system: boolean;
   attributes: string;
-  scan_directory_id?: number;
-  duration?: number;  // 新增：视频/音频时长（秒）
 }
 
 interface IndexProgress {
@@ -57,8 +55,6 @@ export class FileIndexer {
   private indexedCount: number = 0;
   private totalFiles: number = 0;
   private currentPath: string = '';
-  private currentScanRoot: string = '';  // 当前扫描的根目录
-  private currentScanDirectoryId: number = 0;  // 当前扫描目录的数据库ID
   private onProgress?: (progress: IndexProgress) => void;
   private readonly concurrency: number;
   private indexedPaths: Set<string> = new Set();
@@ -76,7 +72,7 @@ export class FileIndexer {
 
   // 开始索引
   async startIndexing(
-    roots: string[],
+    drives: string[],
     options: {
       excludeC?: boolean;
       excludeNodeModules?: boolean;
@@ -97,7 +93,7 @@ export class FileIndexer {
     this.indexedFileIds.clear();
     this.indexedFileModifiedTimes.clear();
 
-    console.log('Starting file indexing for roots:', roots);
+    console.log('Starting file indexing for drives:', drives);
     console.log('Options:', options);
 
     try {
@@ -109,40 +105,23 @@ export class FileIndexer {
         await this.loadIndexedPaths();
       }
 
-      // 扫描并索引文件，边扫描边更新进度
+      // 直接扫描并索引文件，边扫描边处理
       console.log('Scanning and indexing files...');
-      for (const root of roots) {
+      let totalFilesFound = 0;
+      for (const drive of drives) {
         if (!this.isIndexing) break;
-        let normalizedRoot = root;
-        if (normalizedRoot.length === 2 && normalizedRoot[1] === ':') {
-          normalizedRoot = normalizedRoot + '\\';
+        // 修复驱动器路径格式：确保根目录有反斜杠
+        let normalizedDrive = drive;
+        // D: -> D:\, E: -> E:\
+        if (normalizedDrive.length === 2 && normalizedDrive[1] === ':') {
+          normalizedDrive = normalizedDrive + '\\';
         }
-        normalizedRoot = path.normalize(normalizedRoot);
-        // 设置当前扫描根目录
-        this.currentScanRoot = normalizedRoot;
-        
-        // 获取或创建扫描目录的数据库ID
-        let scanDirId = await this.dbService.getScanDirectoryIdByPath(normalizedRoot);
-        if (!scanDirId) {
-          // 如果目录不存在，先保存扫描目录配置
-          await this.dbService.setScanRoots([normalizedRoot]);
-          scanDirId = await this.dbService.getScanDirectoryIdByPath(normalizedRoot);
-        }
-        this.currentScanDirectoryId = scanDirId || 0;
-        
-        writeLog(`[startIndexing] Scanning root: ${root} -> ${normalizedRoot}, scan_directory_id: ${this.currentScanDirectoryId}`);
-        await this.scanAndIndexFiles(normalizedRoot, options);
-        
-        // 更新扫描目录的统计信息
-        if (this.currentScanDirectoryId) {
-          await this.dbService.updateScanDirectoryStats(this.currentScanDirectoryId, this.indexedCount);
-        }
+        writeLog(`[startIndexing] Scanning drive: ${drive} -> ${normalizedDrive}`);
+        const driveFileCount = await this.scanAndIndexFiles(normalizedDrive, options);
+        totalFilesFound += driveFileCount;
       }
-      // 如果没有文件需要索引，设置 totalFiles 为 indexedCount
-      if (this.totalFiles === 0) {
-        this.totalFiles = this.indexedCount;
-      }
-      console.log(`Total files indexed: ${this.indexedCount}`);
+      this.totalFiles = totalFilesFound;
+      console.log(`Total files found and indexed: ${this.totalFiles}`);
 
       console.log(`Indexing completed. Total files indexed: ${this.indexedCount}`);
     } catch (error) {
@@ -311,6 +290,7 @@ export class FileIndexer {
           
           const normalizedPath = path.normalize(fullPath);
           const isNewFile = !this.indexedPaths.has(normalizedPath);
+          const isTextFile = this.contentIndexer.isTextFile(fullPath);
           
           // 检查文件修改时间是否发生变化
           let isModified = false;
@@ -327,11 +307,10 @@ export class FileIndexer {
             }
           }
           
-          // 所有新文件或修改过的文件都需要索引（不只是文本文件）
-          if (isNewFile || isModified) {
+          if (isNewFile || isModified || isTextFile) {
             filesToIndex.push(fullPath);
             fileCount++;
-            // 动态更新总文件数
+            // 实时更新 totalFiles，让进度显示更准确
             this.totalFiles++;
           }
         }
@@ -358,8 +337,8 @@ export class FileIndexer {
             })
           );
 
-          // 每 10 个文件报告一次进度
-          if (this.indexedCount % 10 === 0 && this.onProgress) {
+          // 每 100 个文件报告一次进度
+          if (this.indexedCount % batchSize === 0 && this.onProgress) {
             this.onProgress({
               progress: this.totalFiles > 0 ? this.indexedCount / this.totalFiles : 0,
               currentPath: this.currentPath,
@@ -482,17 +461,6 @@ export class FileIndexer {
         console.warn(`[FileIndexer] Failed to get attributes for ${filePath}:`, attrError);
       }
 
-      // 获取视频/音频时长
-      let duration: number | undefined = undefined;
-      const mediaExtensions = ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'];
-      if (mediaExtensions.includes(ext)) {
-        try {
-          duration = await this.getMediaDuration(filePath);
-        } catch (e) {
-          console.warn(`[FileIndexer] Failed to get duration for ${filePath}:`, e);
-        }
-      }
-
       const fileInfo: FileInfo = {
         name: fileName,
         path: dirPath,
@@ -505,9 +473,7 @@ export class FileIndexer {
         is_hidden: isHidden,
         is_readonly: isReadonly,
         is_system: isSystem,
-        attributes: attributes,
-        scan_directory_id: this.currentScanDirectoryId,
-        duration: duration
+        attributes: attributes
       };
 
       // 检查文件是否已存在
@@ -550,27 +516,5 @@ export class FileIndexer {
       console.warn(`Error indexing file ${filePath}:`, error);
       // 记录警告而不是抛出异常，确保索引过程继续执行
     }
-  }
-
-  // 获取媒体文件时长
-  private async getMediaDuration(filePath: string): Promise<number> {
-    // 使用文件大小估算时长（简化处理）
-    // 实际项目中建议使用 fluent-ffmpeg 获取准确时长
-    const stats = await fs.stat(filePath);
-    const ext = path.extname(filePath).toLowerCase().replace('.', '');
-    
-    // 视频文件平均码率估算
-    const videoBitrate = 5000000; // 5 Mbps
-    const audioBitrate = 128000;  // 128 kbps
-    
-    if (['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'].includes(ext)) {
-      // 估算视频时长（秒）
-      return Math.round(stats.size * 8 / (videoBitrate + audioBitrate));
-    } else if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'].includes(ext)) {
-      // 估算音频时长（秒）
-      return Math.round(stats.size * 8 / audioBitrate);
-    }
-    
-    return 0;
   }
 }

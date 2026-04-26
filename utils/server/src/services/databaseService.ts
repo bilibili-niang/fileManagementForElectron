@@ -1,28 +1,106 @@
-import mysql from 'mysql2/promise';
+import path from 'path';
+import fs from 'fs';
+import initSqlJs from 'sql.js';
 import { FileResult, SearchResult, FileCounts } from './fileService';
 
 export class DatabaseService {
-  private pool: mysql.Pool | null = null;
+  private db: any = null;
+  private SQL: any = null;
+  private dbPath: string = '';
 
   constructor() {
-    this.initializePool();
+    this.initializeDatabase();
   }
 
-  private initializePool() {
-    // 从环境变量或配置文件读取数据库配置
-    this.pool = mysql.createPool({
-      host: process.env.DB_HOST || 'localhost',
-      port: parseInt(process.env.DB_PORT || '3306'),
-      user: process.env.DB_USER || 'root',
-      password: process.env.DB_PASSWORD || '123456',
-      database: process.env.DB_NAME || 'superutils_file_manager',
-      waitForConnections: true,
-      connectionLimit: 10,
-      queueLimit: 0
-    });
+  /**
+   * 初始化SQLite数据库连接
+   * 使用sql.js (纯JavaScript SQLite实现)
+   */
+  private async initializeDatabase() {
+    /**
+     * 确定数据库文件存储位置
+     * 开发环境: server/data/superutils.db
+     * 生产环境: Electron用户数据目录
+     */
+    const isDev = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
+    
+    if (isDev) {
+      this.dbPath = path.join(__dirname, '../data/superutils.db');
+    } else {
+      const appDataPath = process.env.APPDATA || '/tmp';
+      this.dbPath = path.join(appDataPath, 'super-utils', 'data', 'superutils.db');
+    }
+
+    // 确保目录存在
+    const dbDir = path.dirname(this.dbPath);
+    if (!fs.existsSync(dbDir)) {
+      fs.mkdirSync(dbDir, { recursive: true });
+    }
+
+    try {
+      // 初始化 sql.js
+      this.SQL = await initSqlJs({
+        locateFile: (file: string) => `node_modules/sql.js/dist/${file}`
+      });
+      
+      // 如果数据库文件已存在,则读取它
+      if (fs.existsSync(this.dbPath)) {
+        const fileBuffer = fs.readFileSync(this.dbPath);
+        this.db = new this.SQL.Database(fileBuffer);
+        console.log('[DatabaseService] Loaded existing database:', this.dbPath);
+      } else {
+        // 创建新数据库并初始化表结构
+        const { initializeDatabase } = await import('./databaseInit');
+        this.db = await initializeDatabase();
+      }
+      
+      console.log('[DatabaseService] Database initialized successfully');
+      
+    } catch (error) {
+      console.error('[DatabaseService] Failed to initialize database:', error);
+      throw error;
+    }
   }
 
-  // 搜索文件 - 支持高级搜索语法
+  /**
+   * 保存数据库到文件
+   */
+  private saveDatabase(): void {
+    if (!this.db) return;
+    
+    try {
+      const data = this.db.export();
+      const buffer = Buffer.from(data);
+      fs.writeFileSync(this.dbPath, buffer);
+    } catch (error) {
+      console.error('[DatabaseService] Failed to save database:', error);
+    }
+  }
+
+  /**
+   * 等待数据库初始化完成
+   */
+  async ready(): Promise<void> {
+    while (!this.db) {
+      await new Promise(resolve => setTimeout(resolve, 100));
+    }
+  }
+
+  /**
+   * 获取数据库实例
+   */
+  getDb(): any {
+    if (!this.db) {
+      throw new Error('Database not initialized');
+    }
+    return this.db;
+  }
+
+  // ==================== 文件操作方法 ====================
+
+  /**
+   * 搜索文件
+   */
   async searchFiles(
     query: string,
     page: number,
@@ -34,795 +112,274 @@ export class DatabaseService {
       maxSize?: number;
     } = {}
   ): Promise<SearchResult> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
+    await this.ready();
+    
     const offset = (page - 1) * pageSize;
-
-    // 解析搜索查询
-    const searchParams = this.parseSearchQuery(query);
-
-    let whereConditions: string[] = [];
-    let params: any[] = [];
-
-    // 文件名搜索
-    if (searchParams.name) {
-      whereConditions.push('(name LIKE ? OR path LIKE ?)');
-      params.push(`%${searchParams.name}%`, `%${searchParams.name}%`);
+    
+    let whereClause = '';
+    const params: any[] = [];
+    
+    if (query) {
+      whereClause += 'WHERE name LIKE ?';
+      params.push(`%${query}%`);
     }
-
-    // 扩展名过滤
-    if (searchParams.extension) {
-      whereConditions.push('extension = ?');
-      params.push(searchParams.extension.toLowerCase());
-    }
-
-    // 文件类型过滤
+    
     if (options.fileType) {
-      const extensions = this.getFileTypeExtensions(options.fileType);
-      if (extensions.length > 0) {
-        const placeholders = extensions.map(() => '?').join(',');
-        whereConditions.push(`extension IN (${placeholders})`);
-        params.push(...extensions);
-      }
+      whereClause += (whereClause ? ' AND' : 'WHERE') + ' extension = ?';
+      params.push(options.fileType);
     }
-
-    // 文件大小过滤
+    
     if (options.minSize !== undefined) {
-      whereConditions.push('size >= ?');
+      whereClause += (whereClause ? ' AND' : 'WHERE') + ' size >= ?';
       params.push(options.minSize);
     }
+    
     if (options.maxSize !== undefined) {
-      whereConditions.push('size <= ?');
+      whereClause += (whereClause ? ' AND' : 'WHERE') + ' size <= ?';
       params.push(options.maxSize);
     }
 
-    // 构建 WHERE 子句
-    const whereClause = whereConditions.length > 0
-      ? 'WHERE ' + whereConditions.join(' AND ')
-      : '';
-
-    // 执行查询
-    const [rows] = await this.pool.query(
-      `SELECT * FROM files 
-       ${whereClause}
-       ORDER BY modified_time DESC 
-       LIMIT ${parseInt(pageSize as any)} OFFSET ${parseInt(offset as any)}`,
-      params
+    // 查询数据
+    const rows = this.db.exec(
+      `SELECT * FROM files ${whereClause} ORDER BY modified_time DESC LIMIT ? OFFSET ?`,
+      [...params, pageSize, offset]
     );
+    
+    const files = rows[0]?.values.map((row: any[]) => ({
+      id: row[0],
+      name: row[1],
+      path: row[2],
+      extension: row[3],
+      size: row[4],
+      created_time: row[5],
+      modified_time: row[6],
+      accessed_time: row[7],
+      hash: row[8],
+      is_hidden: Boolean(row[9]),
+      is_readonly: Boolean(row[10]),
+      is_system: Boolean(row[11]),
+      attributes: row[12]
+    })) || [];
 
     // 获取总数
-    const [countRows] = await this.pool.execute(
+    const countResult = this.db.exec(
       `SELECT COUNT(*) as total FROM files ${whereClause}`,
       params
     );
-
-    const total = (countRows as any[])[0].total;
-    const totalPages = Math.ceil(total / pageSize);
+    const total = countResult[0]?.values[0][0] || 0;
 
     return {
-      files: rows as FileResult[],
-      totalPages,
-      currentPage: page
+      files,
+      totalPages: Math.ceil(total / pageSize),
+      currentPage: page,
+      total
     };
   }
 
-  // 解析搜索查询
-  private parseSearchQuery(query: string): {
-    name?: string;
-    extension?: string;
-  } {
-    const result: { name?: string; extension?: string } = {};
-
-    // 检查是否有扩展名过滤 (例如: "document pdf" 或 "image jpg")
-    const parts = query.trim().split(/\s+/);
-
-    if (parts.length >= 2) {
-      // 最后一部分可能是扩展名
-      const lastPart = parts[parts.length - 1].toLowerCase();
-      if (lastPart.length <= 10 && !lastPart.includes(' ')) {
-        result.extension = lastPart.replace('.', '');
-        result.name = parts.slice(0, -1).join(' ');
-      } else {
-        result.name = query;
-      }
-    } else {
-      result.name = query;
-    }
-
-    return result;
-  }
-
-  // 获取文件类型对应的扩展名列表
-  private getFileTypeExtensions(fileType: string): string[] {
-    const typeMap: Record<string, string[]> = {
-      'image': ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'],
-      'document': ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt', 'xls', 'xlsx', 'ppt', 'pptx'],
-      'code': ['js', 'ts', 'jsx', 'tsx', 'vue', 'html', 'css', 'py', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'rs', 'rb', 'php'],
-      'video': ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv'],
-      'audio': ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma'],
-      'archive': ['zip', 'rar', '7z', 'tar', 'gz'],
-      'executable': ['exe', 'msi', 'bat', 'cmd', 'sh']
-    };
-
-    return typeMap[fileType.toLowerCase()] || [];
-  }
-
-  // 按分类获取文件
-  async getFilesByCategory(category: string, page: number, pageSize: number): Promise<SearchResult> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const offset = (page - 1) * pageSize;
-
-    let whereClause = '';
-    const params: any[] = [];
-
-    if (category !== 'all') {
-      const categoryExtensions: Record<string, string[]> = {
-        'images': ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'],
-        'documents': ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'],
-        'code': ['js', 'ts', 'jsx', 'tsx', 'vue', 'html', 'css', 'py', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'rs', 'rb', 'php'],
-        'videos': ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv'],
-        'audio': ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma'],
-        'archives': ['zip', 'rar', '7z', 'tar', 'gz'],
-        'executables': ['exe', 'msi', 'bat', 'cmd', 'sh']
-      };
-
-      const extensions = categoryExtensions[category];
-      if (extensions) {
-        const placeholders = extensions.map(() => '?').join(',');
-        whereClause = `WHERE extension IN (${placeholders})`;
-        params.push(...extensions);
-      }
-    }
-
-    // 使用 query 方法而不是 execute，避免参数类型问题
-    const [rows] = await this.pool.query(
-      `SELECT * FROM files ${whereClause} ORDER BY modified_time DESC LIMIT ${parseInt(pageSize as any)} OFFSET ${parseInt(offset as any)}`,
-      params
-    );
-
-    // 获取总数
-    let countQuery = 'SELECT COUNT(*) as total FROM files';
-    const countParams: any[] = [];
-
-    if (category !== 'all') {
-      const categoryExtensions: Record<string, string[]> = {
-        'images': ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'],
-        'documents': ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'],
-        'code': ['js', 'ts', 'jsx', 'tsx', 'vue', 'html', 'css', 'py', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'rs', 'rb', 'php'],
-        'videos': ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv'],
-        'audio': ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma'],
-        'archives': ['zip', 'rar', '7z', 'tar', 'gz'],
-        'executables': ['exe', 'msi', 'bat', 'cmd', 'sh']
-      };
-
-      const extensions = categoryExtensions[category];
-      if (extensions) {
-        const placeholders = extensions.map(() => '?').join(',');
-        countQuery += ` WHERE extension IN (${placeholders})`;
-        countParams.push(...extensions);
-      }
-    }
-
-    const [countRows] = await this.pool.execute(countQuery, countParams);
-    const total = (countRows as any[])[0].total;
-    const totalPages = Math.ceil(total / pageSize);
-
+  /**
+   * 根据ID获取文件
+   */
+  async getFileById(id: number): Promise<FileResult | null> {
+    await this.ready();
+    
+    const result = this.db.exec('SELECT * FROM files WHERE id = ?', [id]);
+    const row = result[0]?.values[0];
+    
+    if (!row) return null;
+    
     return {
-      files: rows as FileResult[],
-      totalPages,
-      currentPage: page
+      id: row[0],
+      name: row[1],
+      path: row[2],
+      extension: row[3],
+      size: row[4],
+      created_time: row[5],
+      modified_time: row[6],
+      accessed_time: row[7],
+      hash: row[8],
+      is_hidden: Boolean(row[9]),
+      is_readonly: Boolean(row[10]),
+      is_system: Boolean(row[11]),
+      attributes: row[12]
     };
   }
 
-  // 获取文件统计
-  async getFileCounts(): Promise<FileCounts> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const [allResult] = await this.pool.execute('SELECT COUNT(*) as count FROM files');
-
-    const categoryQueries = [
-      { name: 'images', extensions: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'] },
-      { name: 'documents', extensions: ['pdf', 'doc', 'docx', 'txt', 'rtf', 'odt'] },
-      { name: 'code', extensions: ['js', 'ts', 'jsx', 'tsx', 'vue', 'html', 'css', 'py', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'rs', 'rb', 'php'] },
-      { name: 'videos', extensions: ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv'] },
-      { name: 'audio', extensions: ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma'] },
-      { name: 'archives', extensions: ['zip', 'rar', '7z', 'tar', 'gz'] },
-      { name: 'executables', extensions: ['exe', 'msi', 'bat', 'cmd', 'sh'] }
-    ];
-
-    const counts: any = {
-      all: (allResult as any[])[0].count
-    };
-
-    for (const category of categoryQueries) {
-      const placeholders = category.extensions.map(() => '?').join(',');
-      const [result] = await this.pool.execute(
-        `SELECT COUNT(*) as count FROM files WHERE extension IN (${placeholders})`,
-        category.extensions
+  /**
+   * 插入或更新文件
+   */
+  async upsertFile(file: Omit<FileResult, 'id' | 'created_at' | 'updated_at'>): Promise<number> {
+    await this.ready();
+    
+    // 先尝试插入
+    try {
+      this.db.run(
+        `INSERT OR IGNORE INTO files 
+         (name, path, extension, size, created_time, modified_time, accessed_time, hash, is_hidden, is_readonly, is_system, attributes)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          file.name,
+          file.path,
+          file.extension,
+          file.size,
+          file.created_time,
+          file.modified_time,
+          file.accessed_time,
+          file.hash,
+          file.is_hidden ? 1 : 0,
+          file.is_readonly ? 1 : 0,
+          file.is_system ? 1 : 0,
+          file.attributes
+        ]
       );
-      counts[category.name] = (result as any[])[0].count;
-    }
-
-    // 计算其他
-    const values = Object.values(counts) as number[];
-    const otherCount = counts.all - values.reduce((a: number, b: number) => a + b, 0) + counts.all;
-    counts.other = Math.max(0, otherCount);
-
-    return counts as FileCounts;
-  }
-
-  // 添加文件到数据库，返回文件 ID
-  async addFile(file: Omit<FileResult, 'id'> & { duration?: number }): Promise<number> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const [result] = await this.pool.execute(
-      `INSERT INTO files (name, path, extension, size, created_time, modified_time, accessed_time, hash, is_hidden, is_readonly, is_system, attributes, scan_directory_id, duration) 
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE 
-       size = VALUES(size), 
-       created_time = VALUES(created_time),
-       modified_time = VALUES(modified_time),
-       accessed_time = VALUES(accessed_time),
-       hash = VALUES(hash),
-       is_hidden = VALUES(is_hidden),
-       is_readonly = VALUES(is_readonly),
-       is_system = VALUES(is_system),
-       attributes = VALUES(attributes),
-       scan_directory_id = VALUES(scan_directory_id),
-       duration = VALUES(duration)`,
-      [file.name, file.path, file.extension, file.size, file.created_time, file.modified_time, file.accessed_time, file.hash, 
-       file.is_hidden, file.is_readonly, file.is_system, file.attributes, file.scan_directory_id || null, file.duration || null]
-    );
-
-    // 如果是新插入的记录，返回插入的 ID
-    if ((result as any).insertId) {
-      return (result as any).insertId;
-    }
-
-    // 如果是更新的记录，查询 ID
-    const [rows] = await this.pool.execute(
-      'SELECT id FROM files WHERE path = ? AND name = ?',
-      [file.path, file.name]
-    );
-
-    return (rows as any[])[0]?.id || 0;
-  }
-
-  // 获取所有文件路径（用于增量索引）
-  async getAllFilePaths(): Promise<{ id: number; path: string; name: string; modified_time: string }[]> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const [rows] = await this.pool.execute(
-      'SELECT id, path, name, modified_time FROM files'
-    );
-
-    return rows as { id: number; path: string; name: string; modified_time: string }[];
-  }
-
-  // 保存文件内容
-  async saveFileContent(fileId: number, content: string, preview: string): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    await this.pool.execute(
-      `INSERT INTO file_contents (file_id, content, content_preview) 
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE 
-       content = VALUES(content), 
-       content_preview = VALUES(content_preview),
-       indexed_at = CURRENT_TIMESTAMP`,
-      [fileId, content, preview]
-    );
-  }
-
-  // 检查文件是否已有内容索引
-  async hasContentIndex(fileId: number): Promise<boolean> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const [rows] = await this.pool.execute(
-      'SELECT 1 FROM file_contents WHERE file_id = ?',
-      [fileId]
-    );
-
-    return (rows as any[]).length > 0;
-  }
-
-  // 搜索文件内容
-  async searchFileContent(
-    keyword: string,
-    page: number,
-    pageSize: number
-  ): Promise<{
-    results: Array<{
-      id: number;
-      name: string;
-      path: string;
-      extension: string;
-      size: number;
-      modified_time: string;
-      contentPreview: string;
-      matchCount: number;
-    }>;
-    totalPages: number;
-    currentPage: number;
-  }> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const offset = (page - 1) * pageSize;
-
-    // 使用 LIKE 搜索（支持中文）
-    const searchPattern = `%${keyword}%`;
-    
-    const [rows] = await this.pool.query(
-      `SELECT 
-        f.id, f.name, f.path, f.extension, f.size, f.modified_time,
-        fc.content_preview as contentPreview,
-        1 as matchCount
-       FROM files f
-       INNER JOIN file_contents fc ON f.id = fc.file_id
-       WHERE LOWER(fc.content) LIKE LOWER(?)
-       ORDER BY f.modified_time DESC
-       LIMIT ${parseInt(pageSize as any)} OFFSET ${parseInt(offset as any)}`,
-      [searchPattern]
-    );
-
-    // 获取总数
-    const [countRows] = await this.pool.execute(
-      `SELECT COUNT(*) as total 
-       FROM files f
-       INNER JOIN file_contents fc ON f.id = fc.file_id
-       WHERE LOWER(fc.content) LIKE LOWER(?)`,
-      [searchPattern]
-    );
-
-    const total = (countRows as any[])[0].total;
-    const totalPages = Math.ceil(total / pageSize);
-
-    return {
-      results: rows as any[],
-      totalPages,
-      currentPage: page
-    };
-  }
-
-  // 获取内容索引统计
-  async getContentIndexStats(): Promise<{
-    totalFiles: number;
-    indexedFiles: number;
-    lastIndexed: string | null;
-  }> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    // 获取总文件数
-    const [totalResult] = await this.pool.execute('SELECT COUNT(*) as count FROM files');
-    const totalFiles = (totalResult as any[])[0].count;
-
-    // 获取已索引内容的文件数
-    const [indexedResult] = await this.pool.execute('SELECT COUNT(*) as count FROM file_contents');
-    const indexedFiles = (indexedResult as any[])[0].count;
-
-    // 获取最后索引时间
-    const [lastIndexedResult] = await this.pool.execute(
-      'SELECT MAX(indexed_at) as lastIndexed FROM file_contents'
-    );
-    const lastIndexed = (lastIndexedResult as any[])[0].lastIndexed;
-
-    return {
-      totalFiles,
-      indexedFiles,
-      lastIndexed
-    };
-  }
-
-  // 获取扩展名统计（用于调试）
-  async getExtensionStats(): Promise<Array<{ extension: string; count: number }>> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const [rows] = await this.pool.execute(`
-      SELECT extension, COUNT(*) as count 
-      FROM files 
-      WHERE extension IN ('js', 'ts', 'vue', 'html', 'css', 'json', 'md', 'txt', 'py', 'java', 'docx', 'pdf', 'xlsx')
-      GROUP BY extension 
-      ORDER BY count DESC
-      LIMIT 20
-    `);
-
-    return rows as any[];
-  }
-
-  // 清除所有数据
-  async clearAllData(): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    await this.pool.execute('SET FOREIGN_KEY_CHECKS = 0');
-    await this.pool.execute('TRUNCATE TABLE file_contents');
-    await this.pool.execute('TRUNCATE TABLE files');
-    await this.pool.execute('TRUNCATE TABLE scan_directories');
-    await this.pool.execute('TRUNCATE TABLE search_history');
-    await this.pool.execute('TRUNCATE TABLE debug_logs');
-    await this.pool.execute('TRUNCATE TABLE index_exclude_rules');
-    await this.pool.execute('TRUNCATE TABLE file_open_config');
-    await this.pool.execute('SET FOREIGN_KEY_CHECKS = 1');
-    
-    // 清除配置表中的扫描目录配置
-    await this.pool.execute(
-      "DELETE FROM app_config WHERE config_key = 'scan_roots'"
-    );
-    
-    console.log('DatabaseService: All data cleared');
-  }
-
-  // 按时长筛选搜索文件
-  async searchFilesByDuration(
-    minDuration?: number,
-    maxDuration?: number,
-    page: number = 1,
-    pageSize: number = 50
-  ): Promise<SearchResult> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const offset = (page - 1) * pageSize;
-    const mediaExtensions = ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm', 'mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'];
-    const placeholders = mediaExtensions.map(() => '?').join(',');
-
-    let whereConditions: string[] = [`extension IN (${placeholders})`];
-    let params: any[] = [...mediaExtensions];
-
-    if (minDuration !== undefined) {
-      whereConditions.push('duration >= ?');
-      params.push(minDuration);
-    }
-    if (maxDuration !== undefined) {
-      whereConditions.push('duration <= ?');
-      params.push(maxDuration);
-    }
-
-    const whereClause = 'WHERE ' + whereConditions.join(' AND ');
-
-    const [rows] = await this.pool.query(
-      `SELECT * FROM files 
-       ${whereClause}
-       ORDER BY duration DESC 
-       LIMIT ${parseInt(pageSize as any)} OFFSET ${parseInt(offset as any)}`,
-      params
-    );
-
-    const [countRows] = await this.pool.execute(
-      `SELECT COUNT(*) as total FROM files ${whereClause}`,
-      params
-    );
-
-    const total = (countRows as any[])[0].total;
-    const totalPages = Math.ceil(total / pageSize);
-
-    return {
-      files: rows as FileResult[],
-      totalPages,
-      currentPage: page
-    };
-  }
-
-  // 批量删除文件
-  async deleteFiles(fileIds: number[]): Promise<number> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    if (fileIds.length === 0) return 0;
-
-    const placeholders = fileIds.map(() => '?').join(',');
-    
-    // 先删除关联的内容索引
-    await this.pool.execute(
-      `DELETE FROM file_contents WHERE file_id IN (${placeholders})`,
-      fileIds
-    );
-
-    // 删除文件记录
-    const [result] = await this.pool.execute(
-      `DELETE FROM files WHERE id IN (${placeholders})`,
-      fileIds
-    );
-
-    return (result as any).affectedRows || 0;
-  }
-
-  // 获取文件打开方式配置
-  async getFileOpenConfigs(): Promise<Array<{
-    extension: string;
-    open_method: string;
-    internal_viewer: string | null;
-  }>> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const [rows] = await this.pool.execute(
-      'SELECT extension, open_method, internal_viewer FROM file_open_config ORDER BY extension'
-    );
-
-    return rows as any[];
-  }
-
-  // 获取单个文件类型的打开方式配置
-  async getFileOpenConfig(extension: string): Promise<{
-    open_method: string;
-    internal_viewer: string | null;
-  } | null> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const [rows] = await this.pool.execute(
-      'SELECT open_method, internal_viewer FROM file_open_config WHERE extension = ?',
-      [extension.toLowerCase()]
-    );
-
-    const results = rows as any[];
-    if (results.length === 0) {
-      return null;
-    }
-
-    return {
-      open_method: results[0].open_method,
-      internal_viewer: results[0].internal_viewer
-    };
-  }
-
-  // 保存文件打开方式配置
-  async saveFileOpenConfig(
-    extension: string,
-    openMethod: string,
-    internalViewer: string | null
-  ): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    await this.pool.execute(
-      `INSERT INTO file_open_config (extension, open_method, internal_viewer)
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-       open_method = VALUES(open_method),
-       internal_viewer = VALUES(internal_viewer)`,
-      [extension.toLowerCase(), openMethod, internalViewer]
-    );
-  }
-
-  // 删除文件打开方式配置
-  async deleteFileOpenConfig(extension: string): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    await this.pool.execute(
-      'DELETE FROM file_open_config WHERE extension = ?',
-      [extension.toLowerCase()]
-    );
-  }
-
-  // 测试连接
-  async testConnection(): Promise<boolean> {
-    try {
-      if (!this.pool) return false;
-      await this.pool.execute('SELECT 1');
-      return true;
-    } catch (error) {
-      console.error('Database connection test failed:', error);
-      return false;
-    }
-  }
-
-  async getAppConfigValue(key: string): Promise<string | null> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const [rows] = await this.pool.execute(
-      'SELECT config_value FROM app_config WHERE config_key = ? LIMIT 1',
-      [key]
-    );
-
-    const results = rows as any[];
-    if (results.length === 0) return null;
-    return results[0].config_value ?? null;
-  }
-
-  async setAppConfigValue(key: string, value: string | null): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    await this.pool.execute(
-      `INSERT INTO app_config (config_key, config_value)
-       VALUES (?, ?)
-       ON DUPLICATE KEY UPDATE
-       config_value = VALUES(config_value)`,
-      [key, value]
-    );
-  }
-
-  async getScanRoots(): Promise<string[]> {
-    const raw = await this.getAppConfigValue('scan_roots');
-    if (!raw) return [];
-
-    try {
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) return [];
-      return parsed.filter((x) => typeof x === 'string' && x.trim()).map((x) => x.trim());
-    } catch {
-      return [];
-    }
-  }
-
-  async setScanRoots(roots: string[]): Promise<void> {
-    if (!this.pool) return;
-    
-    const normalized = Array.from(
-      new Set(
-        (roots || [])
-          .filter((x) => typeof x === 'string')
-          .map((x) => x.trim())
-          .filter(Boolean)
-      )
-    );
-
-    try {
-      // 获取现有的扫描目录
-      const [existingDirs] = await this.pool.execute(
-        'SELECT id, path FROM scan_directories'
+      
+      // 获取最后插入的ID
+      const insertId = this.db.exec("SELECT last_insert_rowid()");
+      const id = insertId[0].values[0][0];
+      
+      if (id > 0) {
+        this.saveDatabase();
+        return id;
+      }
+      
+      // 如果因为UNIQUE冲突导致插入失败,则执行UPDATE
+      this.db.run(
+        `UPDATE files SET
+         size = ?, modified_time = ?, accessed_time = ?, hash = ?,
+         is_hidden = ?, is_readonly = ?, is_system = ?, attributes = ?
+         WHERE path = ? AND name = ?`,
+        [
+          file.size,
+          file.modified_time,
+          file.accessed_time,
+          file.hash,
+          file.is_hidden ? 1 : 0,
+          file.is_readonly ? 1 : 0,
+          file.is_system ? 1 : 0,
+          file.attributes,
+          file.path,
+          file.name
+        ]
       );
-      const existingPaths = new Map((existingDirs as any[]).map(d => [d.path, d.id]));
-
-      // 找出需要删除的目录（在数据库中但不在新列表中）
-      const pathsToDelete: number[] = [];
-      for (const [path, id] of existingPaths) {
-        if (!normalized.some(newPath => 
-          path.toLowerCase() === newPath.toLowerCase()
-        )) {
-          pathsToDelete.push(id);
-        }
-      }
-
-      // 删除不再使用的扫描目录（级联删除会自动清理 files 表）
-      if (pathsToDelete.length > 0) {
-        console.log('Removing scan directories:', pathsToDelete);
-        const placeholders = pathsToDelete.map(() => '?').join(',');
-        await this.pool.execute(
-          `DELETE FROM scan_directories WHERE id IN (${placeholders})`,
-          pathsToDelete
-        );
-      }
-
-      // 添加新的扫描目录
-      for (const root of normalized) {
-        if (!existingPaths.has(root)) {
-          // 从路径中提取目录名称
-          const pathParts = root.split(/[\\/]/);
-          const name = pathParts[pathParts.length - 1] || root;
-          
-          await this.pool.execute(
-            `INSERT INTO scan_directories (path, name) VALUES (?, ?)
-             ON DUPLICATE KEY UPDATE path = VALUES(path)`,
-            [root, name]
-          );
-        }
-      }
-
-      // 同时更新 app_config 保持兼容性
-      await this.setAppConfigValue('scan_roots', JSON.stringify(normalized));
+      
+      // 获取更新后的记录ID
+      const updateResult = this.db.exec(
+        'SELECT id FROM files WHERE path = ? AND name = ?',
+        [file.path, file.name]
+      );
+      const updatedId = updateResult[0].values[0][0];
+      
+      this.saveDatabase();
+      return updatedId;
+      
     } catch (error) {
-      console.error('Error setting scan roots:', error);
+      console.error('[upsertFile] Error:', error);
       throw error;
     }
   }
 
-  // 获取扫描目录及其ID
-  async getScanDirectories(): Promise<Array<{id: number; path: string; name: string}>> {
-    if (!this.pool) return [];
+  /**
+   * 删除文件
+   */
+  async deleteFile(id: number): Promise<boolean> {
+    await this.ready();
     
-    const [rows] = await this.pool.execute(
-      'SELECT id, path, name FROM scan_directories WHERE is_enabled = TRUE ORDER BY id'
-    );
-    
-    return rows as Array<{id: number; path: string; name: string}>;
+    this.db.run('DELETE FROM files WHERE id = ?', [id]);
+    this.saveDatabase();
+    return true; // sql.js 不返回影响行数
   }
 
-  // 根据路径获取扫描目录ID
-  async getScanDirectoryIdByPath(path: string): Promise<number | null> {
-    if (!this.pool) return null;
+  // ==================== 搜索历史操作 ====================
+
+  /**
+   * 保存搜索历史
+   */
+  async saveSearchHistory(query: string, searchType: string, resultCount: number): Promise<void> {
+    await this.ready();
     
-    const [rows] = await this.pool.execute(
-      'SELECT id FROM scan_directories WHERE path = ?',
-      [path]
+    this.db.run(
+      'INSERT INTO search_history (query, search_type, result_count) VALUES (?, ?, ?)',
+      [query, searchType, resultCount]
     );
-    
-    const result = rows as any[];
-    return result[0]?.id || null;
+    this.saveDatabase();
   }
 
-  // 更新扫描目录的文件数量和最后扫描时间
-  async updateScanDirectoryStats(directoryId: number, fileCount: number): Promise<void> {
-    if (!this.pool) return;
+  /**
+   * 获取搜索历史
+   */
+  async getSearchHistory(limit: number = 20, type?: string): Promise<any[]> {
+    await this.ready();
     
-    await this.pool.execute(
-      `UPDATE scan_directories 
-       SET file_count = ?, last_scan_at = NOW() 
-       WHERE id = ?`,
-      [fileCount, directoryId]
-    );
-  }
+    let sql = 'SELECT id, query, search_type, result_count, created_at FROM search_history';
+    const params: any[] = [];
 
-  // ==================== 索引排除规则管理 ====================
-
-  // 获取所有排除规则
-  async getExcludeRules(): Promise<Array<{
-    id: number;
-    rule_type: string;
-    pattern: string;
-    description: string;
-    is_regex: boolean;
-    is_enabled: boolean;
-    priority: number;
-  }>> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
+    if (type) {
+      sql += ' WHERE search_type = ?';
+      params.push(type);
     }
 
-    const [results] = await this.pool.execute(
-      `SELECT id, rule_type, pattern, description, is_regex, is_enabled, priority 
-       FROM index_exclude_rules 
-       ORDER BY priority DESC, created_at ASC`
-    );
+    sql += ' ORDER BY created_at DESC LIMIT ?';
+    const limitInt = parseInt(String(limit), 10) || 20;
+    params.push(limitInt);
 
-    return results as any[];
+    const result = this.db.exec(sql, params);
+    return result[0]?.values.map((row: any[]) => ({
+      id: row[0],
+      query: row[1],
+      search_type: row[2],
+      result_count: row[3],
+      created_at: row[4]
+    })) || [];
   }
 
-  // 获取启用的排除规则（用于索引时）
-  async getEnabledExcludeRules(): Promise<Array<{
-    rule_type: string;
-    pattern: string;
-    is_regex: boolean;
-  }>> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const [results] = await this.pool.execute(
-      `SELECT rule_type, pattern, is_regex 
-       FROM index_exclude_rules 
-       WHERE is_enabled = TRUE
-       ORDER BY priority DESC`
-    );
-
-    return results as any[];
+  /**
+   * 删除搜索历史
+   */
+  async deleteSearchHistory(id: number): Promise<number> {
+    await this.ready();
+    
+    this.db.run('DELETE FROM search_history WHERE id = ?', [id]);
+    this.saveDatabase();
+    return 1; // sql.js 假设成功删除
   }
 
-  // 添加排除规则
+  /**
+   * 清除所有搜索历史
+   */
+  async clearSearchHistory(): Promise<void> {
+    await this.ready();
+
+    this.db.run('DELETE FROM search_history');
+    this.saveDatabase();
+  }
+
+  // ==================== 排除规则操作 ====================
+
+  /**
+   * 获取所有排除规则
+   */
+  async getExcludeRules(): Promise<any[]> {
+    await this.ready();
+
+    const result = this.db.exec(
+      'SELECT id, rule_type, pattern, description, is_regex, is_enabled, priority, created_at, updated_at FROM index_exclude_rules ORDER BY priority DESC, created_at DESC'
+    );
+
+    return result[0]?.values.map((row: any[]) => ({
+      id: row[0],
+      rule_type: row[1],
+      pattern: row[2],
+      description: row[3],
+      is_regex: row[4],
+      is_enabled: row[5],
+      priority: row[6],
+      created_at: row[7],
+      updated_at: row[8]
+    })) || [];
+  }
+
+  /**
+   * 添加排除规则
+   */
   async addExcludeRule(rule: {
     rule_type: string;
     pattern: string;
@@ -830,20 +387,23 @@ export class DatabaseService {
     is_regex?: boolean;
     priority?: number;
   }): Promise<number> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
+    await this.ready();
 
-    const [result] = await this.pool.execute(
-      `INSERT INTO index_exclude_rules (rule_type, pattern, description, is_regex, priority)
-       VALUES (?, ?, ?, ?, ?)`,
-      [rule.rule_type, rule.pattern, rule.description || '', rule.is_regex || false, rule.priority || 0]
+    this.db.run(
+      'INSERT INTO index_exclude_rules (rule_type, pattern, description, is_regex, priority) VALUES (?, ?, ?, ?, ?)',
+      [rule.rule_type, rule.pattern, rule.description || '', rule.is_regex ? 1 : 0, rule.priority || 0]
     );
 
-    return (result as any).insertId;
+    const insertId = this.db.exec("SELECT last_insert_rowid()");
+    const id = insertId[0].values[0][0];
+
+    this.saveDatabase();
+    return id;
   }
 
-  // 更新排除规则
+  /**
+   * 更新排除规则
+   */
   async updateExcludeRule(id: number, updates: {
     rule_type?: string;
     pattern?: string;
@@ -851,197 +411,85 @@ export class DatabaseService {
     is_regex?: boolean;
     is_enabled?: boolean;
     priority?: number;
-  }): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
+  }): Promise<number> {
+    await this.ready();
 
-    const fields: string[] = [];
-    const values: any[] = [];
+    const setFields: string[] = [];
+    const params: any[] = [];
 
     if (updates.rule_type !== undefined) {
-      fields.push('rule_type = ?');
-      values.push(updates.rule_type);
+      setFields.push('rule_type = ?');
+      params.push(updates.rule_type);
     }
     if (updates.pattern !== undefined) {
-      fields.push('pattern = ?');
-      values.push(updates.pattern);
+      setFields.push('pattern = ?');
+      params.push(updates.pattern);
     }
     if (updates.description !== undefined) {
-      fields.push('description = ?');
-      values.push(updates.description);
+      setFields.push('description = ?');
+      params.push(updates.description);
     }
     if (updates.is_regex !== undefined) {
-      fields.push('is_regex = ?');
-      values.push(updates.is_regex);
+      setFields.push('is_regex = ?');
+      params.push(updates.is_regex ? 1 : 0);
     }
     if (updates.is_enabled !== undefined) {
-      fields.push('is_enabled = ?');
-      values.push(updates.is_enabled);
+      setFields.push('is_enabled = ?');
+      params.push(updates.is_enabled ? 1 : 0);
     }
     if (updates.priority !== undefined) {
-      fields.push('priority = ?');
-      values.push(updates.priority);
+      setFields.push('priority = ?');
+      params.push(updates.priority);
     }
 
-    if (fields.length === 0) return;
-
-    values.push(id);
-    await this.pool.execute(
-      `UPDATE index_exclude_rules SET ${fields.join(', ')} WHERE id = ?`,
-      values
-    );
-  }
-
-  // 删除排除规则
-  async deleteExcludeRule(id: number): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
+    if (setFields.length === 0) {
+      return 0;
     }
 
-    await this.pool.execute(
-      'DELETE FROM index_exclude_rules WHERE id = ?',
-      [id]
-    );
-  }
-
-  // ==================== 搜索历史管理 ====================
-
-  // 添加搜索历史
-  async addSearchHistory(query: string, searchType: string = 'filename', resultCount: number = 0): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    // 先删除相同查询的历史记录（避免重复）
-    await this.pool.execute(
-      'DELETE FROM search_history WHERE query = ? AND search_type = ?',
-      [query, searchType]
+    params.push(id);
+    this.db.run(
+      `UPDATE index_exclude_rules SET ${setFields.join(', ')} WHERE id = ?`,
+      params
     );
 
-    // 插入新的历史记录
-    await this.pool.execute(
-      `INSERT INTO search_history (query, search_type, result_count, created_at)
-       VALUES (?, ?, ?, NOW())`,
-      [query, searchType, resultCount]
-    );
-
-    // 只保留最近 50 条记录
-    await this.pool.execute(`
-      DELETE FROM search_history 
-      WHERE id NOT IN (
-        SELECT id FROM (
-          SELECT id FROM search_history 
-          ORDER BY created_at DESC 
-          LIMIT 50
-        ) AS tmp
-      )
-    `);
+    this.saveDatabase();
+    return 1;
   }
 
-  // 获取搜索历史
-  async getSearchHistory(limit: number = 20, searchType?: string): Promise<Array<{
-    id: number;
-    query: string;
-    search_type: string;
-    result_count: number;
-    created_at: string;
-  }>> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
+  /**
+   * 删除排除规则
+   */
+  async deleteExcludeRule(id: number): Promise<number> {
+    await this.ready();
 
-    let sql = `SELECT id, query, search_type, result_count, created_at 
-               FROM search_history`;
-    let params: any[] = [];
-
-    if (searchType) {
-      sql += ' WHERE search_type = ?';
-      params.push(searchType);
-    }
-
-    sql += ' ORDER BY created_at DESC LIMIT ?';
-    params.push(Number(limit));
-
-    console.log('[getSearchHistory] SQL:', sql);
-    console.log('[getSearchHistory] Params:', params);
-
-    const [results] = await this.pool.execute(sql, params);
-    return results as any[];
+    this.db.run('DELETE FROM index_exclude_rules WHERE id = ?', [id]);
+    this.saveDatabase();
+    return 1;
   }
 
-  // 搜索历史建议
-  async getSearchSuggestions(partialQuery: string, limit: number = 10): Promise<Array<{
-    query: string;
-    type: 'history' | 'file';
-  }>> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
+  // ==================== 调试日志操作 ====================
 
-    // 从历史记录中搜索匹配的建议
-    const [results] = await this.pool.execute(
-      `SELECT query, 'history' as type 
-       FROM search_history 
-       WHERE query LIKE ? 
-       ORDER BY created_at DESC 
-       LIMIT ?`,
-      [`%${partialQuery}%`, limit]
-    );
-
-    return results as any[];
-  }
-
-  // 清除搜索历史
-  async clearSearchHistory(): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    await this.pool.execute('DELETE FROM search_history');
-  }
-
-  // 删除单条搜索历史
-  async deleteSearchHistory(id: number): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    await this.pool.execute(
-      'DELETE FROM search_history WHERE id = ?',
-      [id]
-    );
-  }
-
-  // ==================== 调试日志 ====================
-
-  // 添加调试日志
+  /**
+   * 添加调试日志
+   */
   async addDebugLog(component: string, message: string, data?: any): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    await this.pool.execute(
-      `INSERT INTO debug_logs (component, message, data, created_at)
-       VALUES (?, ?, ?, NOW())`,
+    await this.ready();
+    
+    this.db.run(
+      'INSERT INTO debug_logs (component, message, data) VALUES (?, ?, ?)',
       [component, message, data ? JSON.stringify(data) : null]
     );
+    this.saveDatabase();
   }
 
-  // 获取调试日志
-  async getDebugLogs(component?: string, limit: number = 100): Promise<Array<{
-    id: number;
-    component: string;
-    message: string;
-    data: any;
-    created_at: string;
-  }>> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    let sql = `SELECT id, component, message, data, created_at FROM debug_logs`;
-    let params: any[] = [];
+  /**
+   * 获取调试日志
+   */
+  async getDebugLogs(component?: string, limit: number = 100): Promise<any[]> {
+    await this.ready();
+    
+    let sql = 'SELECT * FROM debug_logs';
+    const params: any[] = [];
 
     if (component) {
       sql += ' WHERE component = ?';
@@ -1051,159 +499,729 @@ export class DatabaseService {
     sql += ' ORDER BY created_at DESC LIMIT ?';
     params.push(limit);
 
-    const [results] = await this.pool.execute(sql, params);
-    return (results as any[]).map(row => ({
-      ...row,
-      data: row.data ? JSON.parse(row.data) : null
-    }));
+    const result = this.db.exec(sql, params);
+    return result[0]?.values || [];
   }
 
-  // 清除调试日志
-  async clearDebugLogs(): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    await this.pool.execute('DELETE FROM debug_logs');
-  }
-
-  // ==================== 模拟路由管理 ====================
+  // ==================== 开发环境错误日志操作 ====================
 
   /**
-   * 获取所有模拟路由
-   * @returns 模拟路由列表
+   * 写入开发环境错误日志
    */
-  async getMockRoutes(): Promise<Array<{
-    id: number;
-    path: string;
+  async addDevErrorLog(log: {
+    url: string;
     method: string;
-    response: any;
-    created_at: Date;
-    updated_at: Date;
-  }>> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
+    request_params?: string;
+    request_body?: string;
+    response_status: number;
+    response_body?: string;
+    error_message?: string;
+  }): Promise<void> {
+    await this.ready();
 
-    const [results] = await this.pool.execute(
-      `SELECT id, path, method, response, created_at, updated_at 
-       FROM mock_routes 
-       ORDER BY created_at DESC`
+    this.db.run(
+      `INSERT INTO dev_error_logs (url, method, request_params, request_body, response_status, response_body, error_message)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [log.url, log.method, log.request_params || null, log.request_body || null,
+        log.response_status, log.response_body || null, log.error_message || null]
     );
-
-    return (results as any[]).map(row => ({
-      ...row,
-      response: typeof row.response === 'string' ? JSON.parse(row.response) : row.response
-    }));
+    this.saveDatabase();
   }
 
   /**
-   * 添加模拟路由
-   * @param method - HTTP请求方法
-   * @param path - 路由路径
-   * @param response - 响应数据
+   * 分页查询开发环境错误日志
    */
-  async addMockRoute(
-    method: string,
-    path: string,
-    response: any
-  ): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
+  async getDevErrorLogs(page: number = 1, pageSize: number = 20): Promise<{
+    logs: any[];
+    total: number;
+    totalPages: number;
+    currentPage: number;
+  }> {
+    await this.ready();
 
-    const responseJson = typeof response === 'string' ? response : JSON.stringify(response);
+    const offset = (page - 1) * pageSize;
 
-    await this.pool.execute(
-      `INSERT INTO mock_routes (method, path, response) 
-       VALUES (?, ?, ?)
-       ON DUPLICATE KEY UPDATE 
-       response = VALUES(response),
-       updated_at = CURRENT_TIMESTAMP`,
-      [method.toUpperCase(), path, responseJson]
-    );
-  }
-
-  /**
-   * 删除模拟路由
-   * @param method - HTTP请求方法
-   * @param path - 路由路径
-   */
-  async deleteMockRoute(method: string, path: string): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    await this.pool.execute(
-      'DELETE FROM mock_routes WHERE method = ? AND path = ?',
-      [method.toUpperCase(), path]
-    );
-  }
-
-  // ==================== 窗口状态管理 ====================
-
-  /**
-   * 获取窗口状态
-   * @returns 窗口状态
-   */
-  async getWindowState(): Promise<{
-    width: number;
-    height: number;
-    x: number;
-    y: number;
-    is_maximized: boolean;
-    is_fullscreen: boolean;
-  } | null> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
-    }
-
-    const [rows] = await this.pool.execute(
-      'SELECT width, height, x, y, is_maximized, is_fullscreen FROM window_state WHERE id = 1'
+    const rows = this.db.exec(
+      `SELECT * FROM dev_error_logs ORDER BY created_at DESC LIMIT ? OFFSET ?`,
+      [pageSize, offset]
     );
 
-    const results = rows as any[];
-    if (results.length === 0) {
-      return null;
-    }
+    const logs = rows[0]?.values.map((row: any[]) => ({
+      id: row[0],
+      url: row[1],
+      method: row[2],
+      request_params: row[3],
+      request_body: row[4],
+      response_status: row[5],
+      response_body: row[6],
+      error_message: row[7],
+      created_at: row[8]
+    })) || [];
+
+    const countResult = this.db.exec('SELECT COUNT(*) as total FROM dev_error_logs');
+    const total = countResult[0]?.values[0][0] || 0;
 
     return {
-      width: results[0].width,
-      height: results[0].height,
-      x: results[0].x,
-      y: results[0].y,
-      is_maximized: results[0].is_maximized === 1,
-      is_fullscreen: results[0].is_fullscreen === 1
+      logs,
+      total,
+      totalPages: Math.ceil(total / pageSize),
+      currentPage: page
     };
   }
 
   /**
-   * 保存窗口状态
-   * @param state - 窗口状态
+   * 清空开发环境错误日志
    */
-  async saveWindowState(state: {
-    width: number;
-    height: number;
-    x: number;
-    y: number;
-    is_maximized: boolean;
-    is_fullscreen: boolean;
+  async clearDevErrorLogs(): Promise<void> {
+    await this.ready();
+
+    this.db.run('DELETE FROM dev_error_logs');
+    this.saveDatabase();
+  }
+
+  // ==================== 计算器历史操作 ====================
+
+  /**
+   * 获取计算器历史
+   */
+  async getCalculatorHistory(limit: number = 50): Promise<any[]> {
+    await this.ready();
+    
+    const safeLimit = parseInt(String(limit), 10) || 50;
+    const result = this.db.exec(
+      'SELECT id, expression, result, created_at FROM calculator_history ORDER BY created_at DESC LIMIT ?',
+      [safeLimit]
+    );
+    
+    return result[0]?.values.map((row: any[]) => ({
+      id: row[0],
+      expression: row[1],
+      result: row[2],
+      created_at: row[3]
+    })) || [];
+  }
+
+  /**
+   * 添加计算器历史
+   */
+  async addCalculatorHistory(expression: string, result: string): Promise<void> {
+    await this.ready();
+    
+    this.db.run(
+      'INSERT INTO calculator_history (expression, result) VALUES (?, ?)',
+      [expression, result]
+    );
+    this.saveDatabase();
+  }
+
+  /**
+   * 删除计算器历史
+   */
+  async deleteCalculatorHistory(id: number): Promise<number> {
+    await this.ready();
+    
+    this.db.run('DELETE FROM calculator_history WHERE id = ?', [id]);
+    this.saveDatabase();
+    return 1;
+  }
+
+  // ==================== 二维码配置操作 ====================
+
+  /**
+   * 获取二维码配置
+   */
+  async getQrcodeConfig(): Promise<any> {
+    await this.ready();
+    
+    const result = this.db.exec('SELECT * FROM qrcode_config WHERE id = 1');
+    const row = result[0]?.values[0];
+    
+    if (!row) return null;
+    
+    return {
+      id: row[0],
+      base_url: row[1],
+      time_api_url: row[2],
+      append_time: Boolean(row[3]),
+      qr_size: row[4],
+      error_correction_level: row[5],
+      updated_at: row[6]
+    };
+  }
+
+  /**
+   * 保存二维码配置
+   */
+  async saveQrcodeConfig(config: {
+    base_url?: string;
+    time_api_url?: string;
+    append_time?: boolean;
+    qr_size?: number;
+    error_correction_level?: string;
   }): Promise<void> {
-    if (!this.pool) {
-      throw new Error('Database not initialized');
+    await this.ready();
+    
+    const updates: string[] = [];
+    const values: any[] = [];
+
+    if (config.base_url !== undefined) {
+      updates.push('base_url = ?');
+      values.push(config.base_url);
+    }
+    if (config.time_api_url !== undefined) {
+      updates.push('time_api_url = ?');
+      values.push(config.time_api_url);
+    }
+    if (config.append_time !== undefined) {
+      updates.push('append_time = ?');
+      values.push(config.append_time ? 1 : 0);
+    }
+    if (config.qr_size !== undefined) {
+      updates.push('qr_size = ?');
+      values.push(config.qr_size);
+    }
+    if (config.error_correction_level !== undefined) {
+      updates.push('error_correction_level = ?');
+      values.push(config.error_correction_level);
     }
 
-    await this.pool.execute(
-      `INSERT INTO window_state (id, width, height, x, y, is_maximized, is_fullscreen)
-       VALUES (1, ?, ?, ?, ?, ?, ?)
-       ON DUPLICATE KEY UPDATE
-       width = VALUES(width),
-       height = VALUES(height),
-       x = VALUES(x),
-       y = VALUES(y),
-       is_maximized = VALUES(is_maximized),
-       is_fullscreen = VALUES(is_fullscreen)`,
-      [state.width, state.height, state.x, state.y, state.is_maximized ? 1 : 0, state.is_fullscreen ? 1 : 0]
+    if (updates.length > 0) {
+      values.push(1); // id = 1
+      this.db.run(
+        `UPDATE qrcode_config SET ${updates.join(', ')} WHERE id = ?`,
+        values
+      );
+      this.saveDatabase();
+    }
+  }
+
+  /**
+   * 获取二维码历史
+   */
+  async getQrcodeHistory(limit: number = 50): Promise<any[]> {
+    await this.ready();
+    
+    const safeLimit = parseInt(String(limit), 10) || 50;
+    const result = this.db.exec(
+      'SELECT id, base_url, time_api_url, generated_url, append_time, qr_size, error_correction_level, created_at FROM qrcode_history ORDER BY created_at DESC LIMIT ?',
+      [safeLimit]
     );
+    
+    return result[0]?.values.map((row: any[]) => ({
+      id: row[0],
+      base_url: row[1],
+      time_api_url: row[2],
+      generated_url: row[3],
+      append_time: Boolean(row[4]),
+      qr_size: row[5],
+      error_correction_level: row[6],
+      created_at: row[7]
+    })) || [];
+  }
+
+  /**
+   * 添加二维码历史
+   */
+  async addQrcodeHistory(history: {
+    base_url: string;
+    time_api_url?: string;
+    generated_url: string;
+    append_time: boolean;
+    qr_size: number;
+    error_correction_level: string;
+  }): Promise<number> {
+    await this.ready();
+    
+    this.db.run(
+      'INSERT INTO qrcode_history (base_url, time_api_url, generated_url, append_time, qr_size, error_correction_level) VALUES (?, ?, ?, ?, ?, ?)',
+      [
+        history.base_url,
+        history.time_api_url || '',
+        history.generated_url,
+        history.append_time ? 1 : 0,
+        history.qr_size,
+        history.error_correction_level
+      ]
+    );
+    
+    const insertId = this.db.exec("SELECT last_insert_rowid()");
+    const id = insertId[0].values[0][0];
+    
+    this.saveDatabase();
+    return id;
+  }
+
+  /**
+   * 删除二维码历史
+   */
+  async deleteQrcodeHistory(id: number): Promise<number> {
+    await this.ready();
+    
+    this.db.run('DELETE FROM qrcode_history WHERE id = ?', [id]);
+    this.saveDatabase();
+    return 1;
+  }
+
+  // ==================== 倒计时操作 ====================
+
+  /**
+   * 获取所有倒计时
+   */
+  async getCountdowns(): Promise<any[]> {
+    await this.ready();
+    
+    const result = this.db.exec(
+      "SELECT id, title, date, time, \"repeat\", created_at, updated_at FROM countdowns ORDER BY created_at DESC"
+    );
+    
+    return result[0]?.values.map((row: any[]) => ({
+      id: row[0],
+      title: row[1],
+      date: row[2],
+      time: row[3],
+      repeat: row[4],
+      created_at: row[5],
+      updated_at: row[6]
+    })) || [];
+  }
+
+  /**
+   * 添加倒计时
+   */
+  async addCountdown(countdown: {
+    title: string;
+    date: string | null;
+    time: string | null;
+    repeat: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+  }): Promise<number> {
+    await this.ready();
+    
+    this.db.run(
+      'INSERT INTO countdowns (title, date, time, "repeat") VALUES (?, ?, ?, ?)',
+      [countdown.title, countdown.date, countdown.time, countdown.repeat]
+    );
+    
+    const insertId = this.db.exec("SELECT last_insert_rowid()");
+    const id = insertId[0].values[0][0];
+    
+    this.saveDatabase();
+    return id;
+  }
+
+  /**
+   * 更新倒计时
+   */
+  async updateCountdown(id: number, countdown: {
+    title?: string;
+    date?: string | null;
+    time?: string | null;
+    repeat?: 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly';
+  }): Promise<number> {
+    await this.ready();
+    
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (countdown.title !== undefined) {
+      updates.push('title = ?');
+      params.push(countdown.title);
+    }
+    if (countdown.date !== undefined) {
+      updates.push('date = ?');
+      params.push(countdown.date);
+    }
+    if (countdown.time !== undefined) {
+      updates.push('time = ?');
+      params.push(countdown.time);
+    }
+    if (countdown.repeat !== undefined) {
+      updates.push('"repeat" = ?');
+      params.push(countdown.repeat);
+    }
+
+    if (updates.length === 0) {
+      return 0;
+    }
+
+    params.push(id);
+    this.db.run(
+      `UPDATE countdowns SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+    
+    this.saveDatabase();
+    return 1;
+  }
+
+  /**
+   * 删除倒计时
+   */
+  async deleteCountdown(id: number): Promise<number> {
+    await this.ready();
+    
+    this.db.run('DELETE FROM countdowns WHERE id = ?', [id]);
+    this.saveDatabase();
+    return 1;
+  }
+
+  // ==================== API文档管理 ====================
+
+  /**
+   * 获取所有API文档
+   */
+  async getApiDocs(): Promise<any[]> {
+    await this.ready();
+
+    const result = this.db.exec(
+      'SELECT id, name, source_file, created_at, updated_at FROM api_docs ORDER BY updated_at DESC'
+    );
+
+    return result[0]?.values.map((row: any[]) => ({
+      id: row[0],
+      name: row[1],
+      source_file: row[2],
+      created_at: row[3],
+      updated_at: row[4]
+    })) || [];
+  }
+
+  /**
+   * 获取单个API文档
+   */
+  async getApiDocById(id: number): Promise<any | null> {
+    await this.ready();
+
+    const result = this.db.exec(
+      'SELECT id, name, source_file, openapi_data, created_at, updated_at FROM api_docs WHERE id = ?',
+      [id]
+    );
+
+    if (!result[0]?.values?.length) {
+      return null;
+    }
+
+    const row = result[0].values[0];
+    return {
+      id: row[0],
+      name: row[1],
+      source_file: row[2],
+      openapi_data: row[3],
+      created_at: row[4],
+      updated_at: row[5]
+    };
+  }
+
+  /**
+   * 添加API文档
+   */
+  async addApiDoc(doc: {
+    name: string;
+    source_file?: string;
+    openapi_data: string;
+  }): Promise<number> {
+    await this.ready();
+    
+    this.db.run(
+      'INSERT INTO api_docs (name, source_file, openapi_data) VALUES (?, ?, ?)',
+      [doc.name, doc.source_file || '', doc.openapi_data]
+    );
+    
+    const insertId = this.db.exec("SELECT last_insert_rowid()");
+    const id = insertId[0].values[0][0];
+    
+    this.saveDatabase();
+    return id;
+  }
+
+  /**
+   * 更新API文档
+   */
+  async updateApiDoc(id: number, doc: {
+    name?: string;
+    source_file?: string;
+    openapi_data?: string;
+  }): Promise<number> {
+    await this.ready();
+    
+    const updates: string[] = [];
+    const params: any[] = [];
+
+    if (doc.name !== undefined) {
+      updates.push('name = ?');
+      params.push(doc.name);
+    }
+    if (doc.source_file !== undefined) {
+      updates.push('source_file = ?');
+      params.push(doc.source_file);
+    }
+    if (doc.openapi_data !== undefined) {
+      updates.push('openapi_data = ?');
+      params.push(doc.openapi_data);
+    }
+
+    if (updates.length === 0) {
+      return 0;
+    }
+
+    params.push(id);
+    this.db.run(
+      `UPDATE api_docs SET ${updates.join(', ')} WHERE id = ?`,
+      params
+    );
+    
+    this.saveDatabase();
+    return 1;
+  }
+
+  /**
+   * 删除API文档
+   */
+  async deleteApiDoc(id: number): Promise<number> {
+    await this.ready();
+    
+    this.db.run('DELETE FROM api_docs WHERE id = ?', [id]);
+    this.saveDatabase();
+    return 1;
+  }
+
+  // ==================== Mock路由操作 ====================
+
+  /**
+   * 获取模拟路由
+   */
+  async getMockRoutes(): Promise<any[]> {
+    await this.ready();
+    
+    const result = this.db.exec(
+      'SELECT * FROM mock_routes ORDER BY created_at DESC'
+    );
+    
+    return result[0]?.values.map((row: any[]) => ({
+      id: row[0],
+      path: row[1],
+      method: row[2],
+      response: row[3] ? JSON.parse(row[3]) : null,
+      created_at: row[4],
+      updated_at: row[5]
+    })) || [];
+  }
+
+  /**
+   * 添加模拟路由
+   */
+  async addMockRoute(method: string, pathStr: string, response: any): Promise<void> {
+    await this.ready();
+    
+    this.db.run(
+      `INSERT OR REPLACE INTO mock_routes (method, path, response, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+      [method, pathStr, JSON.stringify(response)]
+    );
+    this.saveDatabase();
+  }
+
+  /**
+   * 删除模拟路由
+   */
+  async deleteMockRoute(method: string, pathStr: string): Promise<void> {
+    await this.ready();
+    
+    this.db.run('DELETE FROM mock_routes WHERE method = ? AND path = ?', [method, pathStr]);
+    this.saveDatabase();
+  }
+
+  /**
+   * 更新模拟路由
+   */
+  async updateMockRoute(oldMethod: string, oldPath: string, method: string, pathStr: string, response: any): Promise<void> {
+    await this.ready();
+    
+    this.db.run(
+      'UPDATE mockRoutes SET method = ?, path = ?, response = ?, updated_at = CURRENT_TIMESTAMP WHERE method = ? AND path = ?',
+      [method, pathStr, JSON.stringify(response), oldMethod, oldPath]
+    );
+    this.saveDatabase();
+  }
+
+  // ==================== 文件打开配置操作 ====================
+
+  /**
+   * 获取文件打开配置列表
+   */
+  async getFileOpenConfigs(): Promise<any[]> {
+    await this.ready();
+    
+    const result = this.db.exec(
+      'SELECT * FROM file_open_config ORDER BY extension'
+    );
+    
+    return result[0]?.values.map((row: any[]) => ({
+      id: row[0],
+      extension: row[1],
+      open_method: row[2],
+      internal_viewer: row[3],
+      updated_at: row[4]
+    })) || [];
+  }
+
+  /**
+   * 获取文件打开配置
+   */
+  async getFileOpenConfig(extension: string): Promise<any | null> {
+    await this.ready();
+    
+    const result = this.db.exec(
+      'SELECT * FROM file_open_config WHERE extension = ?',
+      [extension]
+    );
+    const row = result[0]?.values[0];
+    
+    if (!row) return null;
+    
+    return {
+      id: row[0],
+      extension: row[1],
+      open_method: row[2],
+      internal_viewer: row[3],
+      updated_at: row[4]
+    };
+  }
+
+  /**
+   * 保存文件打开配置
+   */
+  async saveFileOpenConfig(extension: string, openMethod: string, internalViewer?: string): Promise<void> {
+    await this.ready();
+    
+    this.db.run(
+      `INSERT OR REPLACE INTO file_open_config (extension, open_method, internal_viewer, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+      [extension, openMethod, internalViewer]
+    );
+    this.saveDatabase();
+  }
+
+  /**
+   * 删除文件打开配置
+   */
+  async deleteFileOpenConfig(extension: string): Promise<void> {
+    await this.ready();
+    
+    this.db.run('DELETE FROM file_open_config WHERE extension = ?', [extension]);
+    this.saveDatabase();
+  }
+
+  /**
+   * 按分类获取文件列表
+   * @param category - 文件分类 (image/video/audio/document/code/archive/executable)
+   * @param page - 页码
+   * @param pageSize - 每页数量
+   */
+  async getFilesByCategory(category: string, page: number, pageSize: number): Promise<SearchResult> {
+    await this.ready();
+    
+    const extensions = this.getCategoryExtensions(category);
+    
+    const offset = (page - 1) * pageSize;
+    const placeholders = extensions.map(() => '?').join(',');
+    
+    const countResult = this.db.exec(
+      `SELECT COUNT(*) as total FROM files WHERE extension IN (${placeholders})`,
+      extensions
+    );
+    
+    const total = countResult[0]?.values[0][0] || 0;
+    
+    const result = this.db.exec(
+      `SELECT id, name, path, extension, size, modified_time, created_time 
+       FROM files 
+       WHERE extension IN (${placeholders}) 
+       ORDER BY modified_time DESC 
+       LIMIT ? OFFSET ?`,
+      [...extensions, pageSize, offset]
+    );
+    
+    const files = result[0] ? result[0].values.map((row: any[]) => ({
+      id: row[0],
+      name: row[1],
+      path: row[2],
+      extension: row[3],
+      size: row[4],
+      modified_time: row[5],
+      created_time: row[6]
+    })) : [];
+    
+    return { success: true, files, total, page, pageSize };
+  }
+
+  /**
+   * 获取各分类的文件数量统计
+   */
+  async getFileCounts(): Promise<FileCounts> {
+    await this.ready();
+    
+    const categories = [
+      { key: 'images', exts: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico'] },
+      { key: 'videos', exts: ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'] },
+      { key: 'audio', exts: ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'] },
+      { key: 'documents', exts: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'] },
+      { key: 'code', exts: ['js', 'ts', 'vue', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'go', 'rs'] },
+      { key: 'archives', exts: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'] },
+      { key: 'executables', exts: ['exe', 'msi', 'dmg', 'pkg', 'deb', 'rpm', 'appimage'] }
+    ];
+    
+    const counts: FileCounts = {
+      all: 0,
+      images: 0,
+      videos: 0,
+      audio: 0,
+      documents: 0,
+      code: 0,
+      archives: 0,
+      executables: 0,
+      other: 0
+    };
+    
+    // 获取总数
+    const allResult = this.db.exec('SELECT COUNT(*) FROM files');
+    counts.all = allResult[0]?.values[0][0] || 0;
+    
+    // 获取各分类数量
+    for (const category of categories) {
+      const placeholders = category.exts.map(() => '?').join(',');
+      const result = this.db.exec(
+        `SELECT COUNT(*) FROM files WHERE extension IN (${placeholders})`,
+        category.exts
+      );
+      
+      const count = result[0]?.values[0][0] || 0;
+      (counts as any)[category.key] = count;
+    }
+    
+    // 计算其他类型
+    const knownExts = categories.flatMap(c => c.exts);
+    const knownPlaceholders = knownExts.map(() => '?').join(',');
+    const otherResult = this.db.exec(
+      `SELECT COUNT(*) FROM files WHERE extension NOT IN (${knownPlaceholders})`,
+      knownExts
+    );
+    counts.other = otherResult[0]?.values[0][0] || 0;
+    
+    return counts;
+  }
+
+  /**
+   * 获取分类对应的扩展名列表
+   */
+  private getCategoryExtensions(category: string): string[] {
+    const categoryMap: Record<string, string[]> = {
+      image: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico'],
+      video: ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'],
+      audio: ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'],
+      document: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'],
+      code: ['js', 'ts', 'vue', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'go', 'rs', 'rb', 'php', 'swift', 'kt', 'html', 'css', 'scss', 'json', 'xml', 'yaml', 'yml'],
+      archive: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'],
+      executable: ['exe', 'msi', 'dmg', 'pkg', 'deb', 'rpm', 'appimage']
+    };
+    
+    return categoryMap[category] || [];
   }
 }

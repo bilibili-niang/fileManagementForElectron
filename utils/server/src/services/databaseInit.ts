@@ -1,197 +1,173 @@
-import mysql from 'mysql2/promise';
+import initSqlJs from 'sql.js';
+import path from 'path';
+import fs from 'fs';
 
-interface ColumnDef {
-  name: string;
-  def: string;
-  required: boolean;
-}
-
-const DEFAULT_CONFIG = {
-  host: process.env.DB_HOST || 'localhost',
-  port: parseInt(process.env.DB_PORT || '3306'),
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || '123456',
-  database: process.env.DB_NAME || 'superutils_file_manager'
+/**
+ * 数据库文件路径配置
+ * 开发环境: server/data/superutils.db
+ * 生产环境: Electron用户数据目录
+ */
+const getDatabasePath = (): string => {
+  const isDev = !process.env.NODE_ENV || process.env.NODE_ENV === 'development';
+  
+  if (isDev) {
+    return path.join(__dirname, '../data/superutils.db');
+  } else {
+    const appDataPath = process.env.APPDATA || '/tmp';
+    return path.join(appDataPath, 'super-utils', 'data', 'superutils.db');
+  }
 };
 
-export async function initializeDatabase(): Promise<void> {
-  let connection;
+/**
+ * 初始化SQLite数据库
+ * 使用sql.js (纯JavaScript SQLite实现)
+ * @returns Promise<Database> 数据库实例
+ */
+export async function initializeDatabase(): Promise<any> {
+  let dbPath = getDatabasePath();
   
+  // 确保数据目录存在
+  const dbDir = path.dirname(dbPath);
+  if (!fs.existsSync(dbDir)) {
+    fs.mkdirSync(dbDir, { recursive: true });
+    console.log(`[DB Init] Created database directory: ${dbDir}`);
+  }
+
   try {
-    // 先连接到 MySQL（不指定数据库）
-    connection = await mysql.createConnection({
-      host: DEFAULT_CONFIG.host,
-      port: DEFAULT_CONFIG.port,
-      user: DEFAULT_CONFIG.user,
-      password: DEFAULT_CONFIG.password
+    // 初始化 sql.js (加载WASM)
+    const SQL = await initSqlJs({
+      locateFile: (file: string) => `node_modules/sql.js/dist/${file}`
     });
-
-    console.log('Connected to MySQL server');
-
-    // 创建数据库（如果不存在）
-    await connection.execute(
-      `CREATE DATABASE IF NOT EXISTS ${DEFAULT_CONFIG.database} 
-       CHARACTER SET utf8mb4 
-       COLLATE utf8mb4_unicode_ci`
-    );
-    console.log(`Database '${DEFAULT_CONFIG.database}' created or already exists`);
-
-    // 关闭当前连接，使用数据库名重新连接
-    await connection.end();
-
-    // 使用数据库名重新连接
-    connection = await mysql.createConnection({
-      host: DEFAULT_CONFIG.host,
-      port: DEFAULT_CONFIG.port,
-      user: DEFAULT_CONFIG.user,
-      password: DEFAULT_CONFIG.password,
-      database: DEFAULT_CONFIG.database
-    });
-
-    // 创建扫描目录表（必须先创建，因为 files 表有外键引用）
-    await connection.execute(`
-      CREATE TABLE IF NOT EXISTS scan_directories (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        path VARCHAR(500) NOT NULL UNIQUE,
-        name VARCHAR(255) DEFAULT NULL COMMENT '目录名称（可选）',
-        is_enabled BOOLEAN DEFAULT TRUE,
-        file_count INT DEFAULT 0 COMMENT '该目录下的文件数量（缓存）',
-        last_scan_at TIMESTAMP NULL DEFAULT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_path (path),
-        INDEX idx_is_enabled (is_enabled)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
-    `);
-    console.log('Table "scan_directories" created or already exists');
-
+    
+    // 如果数据库文件已存在,则读取它
+    let db: any;
+    if (fs.existsSync(dbPath)) {
+      const fileBuffer = fs.readFileSync(dbPath);
+      db = new SQL.Database(fileBuffer);
+      console.log(`[DB Init] Loaded existing database from: ${dbPath}`);
+    } else {
+      // 创建新数据库
+      db = new SQL.Database();
+      console.log(`[DB Init] Created new database at: ${dbPath}`);
+    }
+    
+    console.log('[DB Init] sql.js database initialized successfully');
+    
+    // ==================== 创建表结构 ====================
+    
     // 创建 files 表
-    await connection.execute(`
+    db.run(`
       CREATE TABLE IF NOT EXISTS files (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        path VARCHAR(500) NOT NULL,
-        extension VARCHAR(50) NOT NULL,
-        size BIGINT DEFAULT 0,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        path TEXT NOT NULL,
+        extension TEXT NOT NULL,
+        size INTEGER DEFAULT 0,
         created_time DATETIME DEFAULT CURRENT_TIMESTAMP,
         modified_time DATETIME DEFAULT CURRENT_TIMESTAMP,
         accessed_time DATETIME DEFAULT CURRENT_TIMESTAMP,
-        hash VARCHAR(32) DEFAULT '',
-        is_hidden BOOLEAN DEFAULT FALSE,
-        is_readonly BOOLEAN DEFAULT FALSE,
-        is_system BOOLEAN DEFAULT FALSE,
-        attributes VARCHAR(100) DEFAULT '',
-        scan_directory_id INT DEFAULT NULL COMMENT '文件所属的扫描目录ID',
-        duration INT DEFAULT NULL COMMENT '视频/音频时长（秒）',
+        hash TEXT DEFAULT '',
+        is_hidden INTEGER DEFAULT 0,
+        is_readonly INTEGER DEFAULT 0,
+        is_system INTEGER DEFAULT 0,
+        attributes TEXT DEFAULT '',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        INDEX idx_name (name),
-        INDEX idx_extension (extension),
-        INDEX idx_path (path),
-        INDEX idx_modified_time (modified_time),
-        INDEX idx_created_time (created_time),
-        INDEX idx_hash (hash),
-        INDEX idx_is_hidden (is_hidden),
-        INDEX idx_scan_directory_id (scan_directory_id),
-        INDEX idx_duration (duration),
-        UNIQUE KEY unique_file (path, name),
-        FOREIGN KEY (scan_directory_id) REFERENCES scan_directories(id) ON DELETE CASCADE
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
-    console.log('Table "files" created or already exists');
+    console.log('[DB Init] Table "files" created or already exists');
 
-    // 创建配置表
-    await connection.execute(`
+    // files 表索引
+    db.run(`CREATE INDEX IF NOT EXISTS idx_files_name ON files(name)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_files_extension ON files(extension)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_files_path ON files(path)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_files_modified_time ON files(modified_time)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_files_created_time ON files(created_at)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_files_hash ON files(hash)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_files_is_hidden ON files(is_hidden)`);
+    db.run(`CREATE UNIQUE INDEX IF NOT EXISTS unique_file ON files(path, name)`);
+
+    // 创建 app_config 表
+    db.run(`
       CREATE TABLE IF NOT EXISTS app_config (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        config_key VARCHAR(100) NOT NULL UNIQUE,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        config_key TEXT NOT NULL UNIQUE,
         config_value TEXT,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
-    console.log('Table "app_config" created or already exists');
 
-    // 创建文件打开方式配置表
-    await connection.execute(`
+    // 创建 file_open_config 表
+    db.run(`
       CREATE TABLE IF NOT EXISTS file_open_config (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        extension VARCHAR(50) NOT NULL UNIQUE,
-        open_method ENUM('internal', 'system') DEFAULT 'internal',
-        internal_viewer VARCHAR(100) DEFAULT NULL,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        extension TEXT NOT NULL UNIQUE,
+        open_method TEXT DEFAULT 'internal' CHECK(open_method IN ('internal', 'system')),
+        internal_viewer TEXT DEFAULT NULL,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
-    console.log('Table "file_open_config" created or already exists');
 
-    // 插入默认配置
+    // 插入默认文件打开方式配置
     const defaultConfigs = [
       { extension: 'txt', open_method: 'internal', internal_viewer: 'editor' },
       { extension: 'md', open_method: 'internal', internal_viewer: 'editor' },
       { extension: 'js', open_method: 'internal', internal_viewer: 'editor' },
       { extension: 'ts', open_method: 'internal', internal_viewer: 'editor' },
       { extension: 'vue', open_method: 'internal', internal_viewer: 'editor' },
+      { extension: 'html', open_method: 'internal', internal_viewer: 'editor' },
+      { extension: 'css', open_method: 'internal', internal_viewer: 'editor' },
+      { extension: 'py', open_method: 'internal', internal_viewer: 'editor' },
       { extension: 'json', open_method: 'internal', internal_viewer: 'editor' },
       { extension: 'yaml', open_method: 'internal', internal_viewer: 'editor' },
-      { extension: 'yml', open_method: 'internal', internal_viewer: 'editor' },
-      { extension: 'sql', open_method: 'internal', internal_viewer: 'editor' },
-      { extension: 'log', open_method: 'internal', internal_viewer: 'editor' },
       { extension: 'jpg', open_method: 'internal', internal_viewer: 'image' },
       { extension: 'jpeg', open_method: 'internal', internal_viewer: 'image' },
       { extension: 'png', open_method: 'internal', internal_viewer: 'image' },
       { extension: 'gif', open_method: 'internal', internal_viewer: 'image' },
-      { extension: 'bmp', open_method: 'internal', internal_viewer: 'image' },
-      { extension: 'webp', open_method: 'internal', internal_viewer: 'image' },
       { extension: 'pdf', open_method: 'internal', internal_viewer: 'pdf' },
       { extension: 'docx', open_method: 'internal', internal_viewer: 'docx' },
       { extension: 'mp4', open_method: 'internal', internal_viewer: 'media' },
-      { extension: 'webm', open_method: 'internal', internal_viewer: 'media' },
-      { extension: 'ogg', open_method: 'internal', internal_viewer: 'media' },
-      { extension: 'mp3', open_method: 'internal', internal_viewer: 'media' },
-      { extension: 'wav', open_method: 'internal', internal_viewer: 'media' }
+      { extension: 'mp3', open_method: 'internal', internal_viewer: 'media' }
     ];
 
-    for (const config of defaultConfigs) {
-      await connection.execute(`
-        INSERT INTO file_open_config (extension, open_method, internal_viewer)
-        VALUES (?, ?, ?)
-        ON DUPLICATE KEY UPDATE
-        open_method = VALUES(open_method),
-        internal_viewer = VALUES(internal_viewer)
-      `, [config.extension, config.open_method, config.internal_viewer]);
-    }
-    console.log('Default file open configs inserted');
+    const insertConfig = db.prepare(
+      `INSERT OR IGNORE INTO file_open_config (extension, open_method, internal_viewer) VALUES (?, ?, ?)`
+    );
 
-    // 创建文件内容表
-    await connection.execute(`
+    for (const config of defaultConfigs) {
+      insertConfig.run(config.extension, config.open_method, config.internal_viewer);
+    }
+    console.log('[DB Init] Default file open configs inserted');
+
+    // 创建 file_contents 表
+    db.run(`
       CREATE TABLE IF NOT EXISTS file_contents (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        file_id INT NOT NULL,
-        content LONGTEXT,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id INTEGER NOT NULL,
+        content TEXT,
         content_preview TEXT,
         indexed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE CASCADE,
-        UNIQUE KEY unique_file_content (file_id),
-        INDEX idx_content (content(255))
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        UNIQUE (file_id)
+      )
     `);
-    console.log('Table "file_contents" created or already exists');
+    db.run(`CREATE INDEX IF NOT EXISTS idx_file_contents_file_id ON file_contents(file_id)`);
 
-    // 创建索引排除规则表
-    await connection.execute(`
+    // 创建 index_exclude_rules 表
+    db.run(`
       CREATE TABLE IF NOT EXISTS index_exclude_rules (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        rule_type ENUM('directory', 'path_pattern') NOT NULL DEFAULT 'directory',
-        pattern VARCHAR(255) NOT NULL,
-        description VARCHAR(255) DEFAULT '',
-        is_regex BOOLEAN DEFAULT FALSE,
-        is_enabled BOOLEAN DEFAULT TRUE,
-        priority INT DEFAULT 0,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        rule_type TEXT NOT NULL DEFAULT 'directory' CHECK(rule_type IN ('directory', 'path_pattern')),
+        pattern TEXT NOT NULL,
+        description TEXT DEFAULT '',
+        is_regex INTEGER DEFAULT 0,
+        is_enabled INTEGER DEFAULT 1,
+        priority INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_pattern (pattern, rule_type)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (pattern, rule_type)
+      )
     `);
-    console.log('Table "index_exclude_rules" created or already exists');
 
     // 插入默认排除规则
     const defaultExcludeRules = [
@@ -200,223 +176,218 @@ export async function initializeDatabase(): Promise<void> {
       { rule_type: 'directory', pattern: '.svn', description: 'SVN 版本控制目录', is_regex: false },
       { rule_type: 'directory', pattern: 'dist', description: '构建输出目录', is_regex: false },
       { rule_type: 'directory', pattern: 'build', description: '构建输出目录', is_regex: false },
-      { rule_type: 'directory', pattern: '.vscode', description: 'VS Code 配置目录', is_regex: false },
-      { rule_type: 'directory', pattern: '.idea', description: 'JetBrains 配置目录', is_regex: false },
-      { rule_type: 'directory', pattern: '__pycache__', description: 'Python 缓存目录', is_regex: false },
-      { rule_type: 'directory', pattern: '.next', description: 'Next.js 构建目录', is_regex: false },
-      { rule_type: 'directory', pattern: '.nuxt', description: 'Nuxt.js 构建目录', is_regex: false },
       { rule_type: 'path_pattern', pattern: '\\.log$', description: '日志文件', is_regex: true },
       { rule_type: 'path_pattern', pattern: '\\.tmp$', description: '临时文件', is_regex: true }
     ];
 
+    const insertRule = db.prepare(
+      `INSERT OR IGNORE INTO index_exclude_rules (rule_type, pattern, description, is_regex) VALUES (?, ?, ?, ?)`
+    );
+
     for (const rule of defaultExcludeRules) {
       try {
-        await connection.execute(
-          `INSERT IGNORE INTO index_exclude_rules (rule_type, pattern, description, is_regex) 
-           VALUES (?, ?, ?, ?)`,
-          [rule.rule_type, rule.pattern, rule.description, rule.is_regex]
-        );
+        insertRule.run(rule.rule_type, rule.pattern, rule.description, rule.is_regex ? 1 : 0);
       } catch (err) {
-        console.warn('Failed to insert default exclude rule:', rule.pattern);
+        console.warn(`[DB Init] Failed to insert default exclude rule:`, rule.pattern);
       }
     }
-    console.log('Default exclude rules inserted');
 
-    // 创建搜索历史表
-    await connection.execute(`
+    // 创建 search_history 表
+    db.run(`
       CREATE TABLE IF NOT EXISTS search_history (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        query VARCHAR(500) NOT NULL,
-        search_type ENUM('filename', 'content') DEFAULT 'filename',
-        result_count INT DEFAULT 0,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        query TEXT NOT NULL,
+        search_type TEXT DEFAULT 'filename' CHECK(search_type IN ('filename', 'content')),
+        result_count INTEGER DEFAULT 0,
+        search_count INTEGER DEFAULT 1,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_query (query),
-        INDEX idx_created_at (created_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
-    console.log('Table "search_history" created or already exists');
+    db.run(`CREATE INDEX IF NOT EXISTS idx_search_history_query ON search_history(query)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_search_history_created_at ON search_history(created_at)`);
+    db.run(`CREATE UNIQUE INDEX IF NOT EXISTS unique_query_type ON search_history(query, search_type)`);
 
-    // 创建调试日志表
-    await connection.execute(`
+    // 创建 debug_logs 表
+    db.run(`
       CREATE TABLE IF NOT EXISTS debug_logs (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        component VARCHAR(100) NOT NULL,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        component TEXT NOT NULL,
         message TEXT,
-        data JSON,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        INDEX idx_component (component),
-        INDEX idx_created_at (created_at)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        data TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
-    console.log('Table "debug_logs" created or already exists');
+    db.run(`CREATE INDEX IF NOT EXISTS idx_debug_logs_component ON debug_logs(component)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_debug_logs_created_at ON debug_logs(created_at)`);
 
-    // 创建模拟路由表
-    await connection.execute(`
+    // 创建 mock_routes 表
+    db.run(`
       CREATE TABLE IF NOT EXISTS mock_routes (
-        id INT AUTO_INCREMENT PRIMARY KEY,
-        path VARCHAR(500) NOT NULL,
-        method VARCHAR(10) NOT NULL DEFAULT 'GET',
-        response JSON,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        path TEXT NOT NULL,
+        method TEXT NOT NULL DEFAULT 'GET',
+        response TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-        UNIQUE KEY unique_route (path, method),
-        INDEX idx_path (path),
-        INDEX idx_method (method)
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE (path, method)
+      )
     `);
-    console.log('Table "mock_routes" created or already exists');
+    db.run(`CREATE INDEX IF NOT EXISTS idx_mock_routes_path ON mock_routes(path)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_mock_routes_method ON mock_routes(method)`);
 
-    // 创建窗口状态表
-    await connection.execute(`
+    // 创建 window_state 表
+    db.run(`
       CREATE TABLE IF NOT EXISTS window_state (
-        id INT PRIMARY KEY DEFAULT 1,
-        width INT DEFAULT 1200,
-        height INT DEFAULT 800,
-        x INT DEFAULT 0,
-        y INT DEFAULT 0,
-        is_maximized BOOLEAN DEFAULT FALSE,
-        is_fullscreen BOOLEAN DEFAULT FALSE,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        width INTEGER DEFAULT 1200,
+        height INTEGER DEFAULT 800,
+        x INTEGER DEFAULT 0,
+        y INTEGER DEFAULT 0,
+        is_maximized INTEGER DEFAULT 0,
+        is_fullscreen INTEGER DEFAULT 0,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
     `);
-    console.log('Table "window_state" created or already exists');
+    db.prepare(`INSERT OR IGNORE INTO window_state (id) VALUES (1)`).run();
 
-    // 强制同步 files 表结构
-    await syncTableSchema(connection, DEFAULT_CONFIG.database, 'files', [
-      { name: 'id', def: 'INT AUTO_INCREMENT PRIMARY KEY', required: true },
-      { name: 'name', def: 'VARCHAR(255) NOT NULL', required: true },
-      { name: 'path', def: 'VARCHAR(500) NOT NULL', required: true },
-      { name: 'extension', def: 'VARCHAR(50) NOT NULL', required: true },
-      { name: 'size', def: 'BIGINT DEFAULT 0', required: true },
-      { name: 'created_time', def: 'DATETIME DEFAULT CURRENT_TIMESTAMP', required: true },
-      { name: 'modified_time', def: 'DATETIME DEFAULT CURRENT_TIMESTAMP', required: true },
-      { name: 'accessed_time', def: 'DATETIME DEFAULT CURRENT_TIMESTAMP', required: true },
-      { name: 'hash', def: "VARCHAR(32) DEFAULT ''", required: true },
-      { name: 'is_hidden', def: 'BOOLEAN DEFAULT FALSE', required: true },
-      { name: 'is_readonly', def: 'BOOLEAN DEFAULT FALSE', required: true },
-      { name: 'is_system', def: 'BOOLEAN DEFAULT FALSE', required: true },
-      { name: 'attributes', def: "VARCHAR(100) DEFAULT ''", required: true },
-      { name: 'scan_directory_id', def: "INT DEFAULT NULL COMMENT '文件所属的扫描目录ID'", required: true },
-      { name: 'duration', def: "INT DEFAULT NULL COMMENT '视频/音频时长（秒）'", required: true },
-      { name: 'created_at', def: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP', required: true },
-      { name: 'updated_at', def: 'TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP', required: true }
-    ]);
+    // 创建 calculator_history 表
+    db.run(`
+      CREATE TABLE IF NOT EXISTS calculator_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        expression TEXT NOT NULL,
+        result TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_calculator_history_created_at ON calculator_history(created_at)`);
 
-    // 添加索引
-    const indexDefinitions = [
-      { name: 'idx_created_time', def: `CREATE INDEX idx_created_time ON files(created_time)` },
-      { name: 'idx_hash', def: `CREATE INDEX idx_hash ON files(hash)` },
-      { name: 'idx_is_hidden', def: `CREATE INDEX idx_is_hidden ON files(is_hidden)` },
-      { name: 'idx_scan_directory_id', def: `CREATE INDEX idx_scan_directory_id ON files(scan_directory_id)` },
-      { name: 'idx_duration', def: `CREATE INDEX idx_duration ON files(duration)` }
-    ];
+    // 创建 qrcode_config 表
+    db.run(`
+      CREATE TABLE IF NOT EXISTS qrcode_config (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        base_url TEXT DEFAULT 'http://172.19.102.166:8000/#/indexApp',
+        time_api_url TEXT DEFAULT 'http://172.19.102.166:8000/client/system/datetime',
+        append_time INTEGER DEFAULT 1,
+        qr_size INTEGER DEFAULT 256,
+        error_correction_level TEXT DEFAULT 'M',
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.prepare(`INSERT OR IGNORE INTO qrcode_config (id) VALUES (1)`).run();
 
-    // 获取现有索引
-    const [indexes] = await connection.execute(
-      `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS 
-       WHERE TABLE_SCHEMA = ? AND TABLE_NAME = 'files'`,
-      [DEFAULT_CONFIG.database]
-    );
-    const existingIndexes = (indexes as any[]).map(idx => idx.INDEX_NAME);
+    // 创建 qrcode_history 表
+    db.run(`
+      CREATE TABLE IF NOT EXISTS qrcode_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        base_url TEXT NOT NULL,
+        time_api_url TEXT DEFAULT '',
+        generated_url TEXT NOT NULL,
+        append_time INTEGER DEFAULT 0,
+        qr_size INTEGER DEFAULT 256,
+        error_correction_level TEXT DEFAULT 'M',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_qrcode_history_created_at ON qrcode_history(created_at)`);
 
-    for (const idx of indexDefinitions) {
-      if (!existingIndexes.includes(idx.name)) {
-        try {
-          await connection.execute(idx.def);
-          console.log(`Migration: Added index ${idx.name}`);
-        } catch (err: any) {
-          console.warn(`Migration warning for ${idx.name}:`, err.message);
-        }
-      } else {
-        console.log(`Migration: Index ${idx.name} already exists`);
-      }
-    }
+    // 创建 countdowns 表
+    db.run(`
+      CREATE TABLE IF NOT EXISTS countdowns (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        date TEXT DEFAULT NULL,
+        time TEXT DEFAULT NULL,
+        "repeat" TEXT DEFAULT 'none' CHECK("repeat" IN ('none', 'daily', 'weekly', 'monthly', 'yearly')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_countdowns_created_at ON countdowns(created_at)`);
 
-    console.log('Database initialization completed successfully');
+    // 创建 api_docs 表
+    db.run(`
+      CREATE TABLE IF NOT EXISTS api_docs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        name TEXT NOT NULL,
+        source_file TEXT DEFAULT '',
+        openapi_data TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
 
+    /**
+     * 创建 dev_error_logs 表 (开发环境错误请求日志)
+     */
+    db.run(`
+      CREATE TABLE IF NOT EXISTS dev_error_logs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        url TEXT NOT NULL,
+        method TEXT NOT NULL DEFAULT 'GET',
+        request_params TEXT,
+        request_body TEXT,
+        response_status INTEGER NOT NULL,
+        response_body TEXT,
+        error_message TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_dev_error_logs_status ON dev_error_logs(response_status)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_dev_error_logs_created_at ON dev_error_logs(created_at)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_dev_error_logs_url ON dev_error_logs(url)`);
+
+    /**
+     * 创建 file_favorites 表 (文件收藏夹)
+     */
+    db.run(`
+      CREATE TABLE IF NOT EXISTS file_favorites (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        type TEXT NOT NULL CHECK(type IN ('folder', 'search', 'file')),
+        name TEXT NOT NULL,
+        path TEXT,
+        query TEXT,
+        icon TEXT DEFAULT 'folder',
+        color TEXT DEFAULT '#1976D2',
+        sort_order INTEGER DEFAULT 0,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+      )
+    `);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_favorites_type ON file_favorites(type)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_favorites_created ON file_favorites(created_at)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_favorites_sort_order ON file_favorites(sort_order)`);
+
+    /**
+     * 创建 file_access_history 表 (文件访问历史)
+     */
+    db.run(`
+      CREATE TABLE IF NOT EXISTS file_access_history (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        file_id INTEGER,
+        path TEXT NOT NULL,
+        name TEXT NOT NULL,
+        access_type TEXT DEFAULT 'open' CHECK(access_type IN ('open', 'preview', 'edit')),
+        accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (file_id) REFERENCES files(id) ON DELETE SET NULL
+      )
+    `);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_access_history_file ON file_access_history(file_id)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_access_history_time ON file_access_history(accessed_at)`);
+    db.run(`CREATE INDEX IF NOT EXISTS idx_access_history_path ON file_access_history(path)`);
+
+    console.log('[DB Init] ✅ All tables initialized successfully');
+    
+    // 保存数据库到文件
+    const data = db.export();
+    const buffer = Buffer.from(data);
+    fs.writeFileSync(dbPath, buffer);
+    console.log(`[DB Init] Database saved to: ${dbPath}`);
+    
+    return db;
+    
   } catch (error) {
-    console.error('Database initialization failed:', error);
+    console.error('[DB Init] ❌ Database initialization failed:', error);
     throw error;
-  } finally {
-    if (connection) {
-      await connection.end();
-    }
   }
-}
-
-/**
- * 同步表结构 - 强制将表结构同步为期望的状态
- * @param connection - 数据库连接
- * @param database - 数据库名
- * @param tableName - 表名
- * @param expectedColumns - 期望的列定义
- */
-async function syncTableSchema(
-  connection: mysql.Connection,
-  database: string,
-  tableName: string,
-  expectedColumns: ColumnDef[]
-): Promise<void> {
-  console.log(`[Sync] Starting schema sync for table: ${tableName}`);
-  
-  // 获取现有列
-  const [columns] = await connection.execute(
-    `SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS 
-     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-    [database, tableName]
-  );
-  const existingColumns = (columns as any[]).map(col => col.COLUMN_NAME);
-  console.log(`[Sync] Existing columns in ${tableName}:`, existingColumns);
-  
-  // 获取现有索引
-  const [indexes] = await connection.execute(
-    `SELECT INDEX_NAME FROM INFORMATION_SCHEMA.STATISTICS 
-     WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?`,
-    [database, tableName]
-  );
-  const existingIndexes = (indexes as any[]).map(idx => idx.INDEX_NAME);
-  
-  // 1. 添加缺失的列
-  for (const col of expectedColumns) {
-    if (!existingColumns.includes(col.name)) {
-      try {
-        await connection.execute(`ALTER TABLE ${tableName} ADD COLUMN ${col.name} ${col.def}`);
-        console.log(`[Sync] Added column: ${col.name}`);
-      } catch (err: any) {
-        console.warn(`[Sync] Warning adding column ${col.name}:`, err.message);
-      }
-    }
-  }
-  
-  // 2. 删除多余的列（非必需列）
-  const expectedColumnNames = expectedColumns.map(col => col.name);
-  for (const existingCol of existingColumns) {
-    if (!expectedColumnNames.includes(existingCol)) {
-      try {
-        // 先删除该列上的所有索引
-        const colIndexes = existingIndexes.filter(idx => 
-          idx.toLowerCase() === `idx_${existingCol}`.toLowerCase() ||
-          idx.toLowerCase().includes(existingCol.toLowerCase())
-        );
-        for (const idxName of colIndexes) {
-          if (idxName !== 'PRIMARY') {
-            try {
-              await connection.execute(`ALTER TABLE ${tableName} DROP INDEX ${idxName}`);
-              console.log(`[Sync] Dropped index: ${idxName}`);
-            } catch (idxErr: any) {
-              console.warn(`[Sync] Warning dropping index ${idxName}:`, idxErr.message);
-            }
-          }
-        }
-        
-        // 删除列
-        await connection.execute(`ALTER TABLE ${tableName} DROP COLUMN ${existingCol}`);
-        console.log(`[Sync] Removed column: ${existingCol}`);
-      } catch (err: any) {
-        console.warn(`[Sync] Warning removing column ${existingCol}:`, err.message);
-      }
-    }
-  }
-  
-  console.log(`[Sync] Schema sync completed for table: ${tableName}`);
 }
