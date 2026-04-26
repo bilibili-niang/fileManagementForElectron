@@ -1,0 +1,170 @@
+// 基础样式
+html, body, #app {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Roboto', 'Microsoft YaHei', sans-serif;
+}
+
+// 全局滚动条样式
+* {
+  scrollbar-width: thin;
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(128, 128, 128, 0.4);
+  border-radius: 3px;
+
+  &:hover {
+    background: rgba(128, 128, 128, 0.6);
+  }
+}
+
+// 应用容器
+.v-application {
+  height: 100vh;
+  overflow: hidden;
+}
+
+// 主内容区域 - 只在这一层控制滚动
+.v-main {
+  padding: 0 !important;
+  height: calc(100vh - 36px); // 减去导航栏高度
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+// 窗口内容容器
+.window-content {
+  min-height: 100%;
+}
+
+// VWindow 容器 - 不设置滚动
+.v-window {
+  min-height: 100%;
+}
+
+// 页面内容项 - 只有这一层有滚动
+.v-window-item {
+  min-height: 100%;
+  padding: 16px;
+}
+
+// 页面内部容器不添加额外 padding
+.v-window-item .v-container,
+.v-window-item .v-container-fluid {
+  padding: 0 !important;
+}
+
+// Tab 选择器样式
+.tab-selector-container {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 8px;
+}
+
+.tab-selector-btn {
+  min-height: 28px !important;
+  height: 28px !important;
+  font-size: 13px !important;
+  text-transform: none !important;
+  color: rgba(255, 255, 255, 0.9) !important;
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-radius: 6px !important;
+  padding: 0 12px !important;
+  transition: all 0.2s ease;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.2) !important;
+  }
+}
+
+.tab-menu-list {
+  min-width: 160px;
+  border-radius: 8px;
+  padding: 4px;
+}
+
+.tab-menu-item {
+  border-radius: 4px;
+  margin-bottom: 2px;
+  transition: all 0.2s ease;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &:hover {
+    background: rgba(var(--v-theme-primary), 0.08);
+  }
+
+  &.v-list-item--active {
+    background: rgba(var(--v-theme-primary), 0.12);
+    color: rgb(var(--v-theme-primary));
+  }
+}
+
+// 图标按钮大小
+.v-btn--icon {
+  &.size-x-small {
+    width: 24px !important;
+    height: 24px !important;
+
+    .v-icon {
+      font-size: 16px !important;
+    }
+  }
+
+  &.size-small {
+    width: 32px !important;
+    height: 32px !important;
+
+    .v-icon {
+      font-size: 20px !important;
+    }
+  }
+
+  &.size-default {
+    width: 40px !important;
+    height: 40px !important;
+
+    .v-icon {
+      font-size: 24px !important;
+    }
+  }
+
+  &.size-large {
+    width: 48px !important;
+    height: 48px !important;
+
+    .v-icon {
+      font-size: 28px !important;
+    }
+  }
+}
+
+// 历史记录列表中的图标按钮
+.history-list {
+  .v-btn--icon {
+    width: 32px !important;
+    height: 32px !important;
+
+    .v-icon {
+      font-size: 20px !important;
+    }
+  }
+}

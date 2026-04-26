@@ -75,6 +75,14 @@
             <!-- 操作按钮 - 绝对定位在右上角 -->
             <div class="route-actions">
               <v-btn
+                icon="mdi-pencil"
+                size="small"
+                variant="text"
+                color="primary"
+                @click="openEditDialog(index)"
+                title="编辑"
+              ></v-btn>
+              <v-btn
                 icon="mdi-code-json"
                 size="small"
                 variant="text"
@@ -120,7 +128,7 @@
                     <span class="text-caption text-grey">响应数据:</span>
                     <v-btn
                       icon="mdi-content-copy"
-                      size="x-small"
+                      size="small"
                       variant="text"
                       density="compact"
                       @click="copyResponse(route.response)"
@@ -155,6 +163,54 @@
     >
       {{ snackbar.message }}
     </v-snackbar>
+
+    <!-- 编辑路由对话框 -->
+    <v-dialog v-model="editDialog.show" max-width="600" persistent>
+      <v-card>
+        <v-card-title>编辑路由</v-card-title>
+        <v-card-text>
+          <v-row class="mt-2">
+            <v-col cols="12" sm="4">
+              <v-select
+                v-model="editDialog.method"
+                label="请求方式"
+                :items="httpMethods"
+                variant="outlined"
+                density="compact"
+                hide-details
+              ></v-select>
+            </v-col>
+            <v-col cols="12" sm="8">
+              <v-text-field
+                v-model="editDialog.path"
+                label="路由路径"
+                placeholder="/api/test"
+                variant="outlined"
+                density="compact"
+                hide-details
+              ></v-text-field>
+            </v-col>
+          </v-row>
+          <v-textarea
+            v-model="editDialog.response"
+            label="返回数据 (JSON格式)"
+            placeholder='{"code": 200, "data": "success"}'
+            variant="outlined"
+            density="compact"
+            rows="6"
+            class="mt-4"
+            :error-messages="editDialog.responseError"
+          ></v-textarea>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="closeEditDialog">取消</v-btn>
+          <v-btn color="primary" variant="elevated" @click="saveEdit" :loading="editDialog.saving">
+            保存
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -219,6 +275,19 @@ const snackbar = ref({
 })
 
 /**
+ * 编辑对话框状态
+ */
+const editDialog = ref({
+  show: false,
+  index: -1,
+  method: '',
+  path: '',
+  response: '',
+  saving: false,
+  responseError: ''
+})
+
+/**
  * 显示提示
  * @param message - 提示消息
  * @param color - 提示颜色
@@ -274,15 +343,43 @@ function toggleExpand(index: number): void {
 }
 
 /**
+ * 复制文本到剪贴板(兼容性处理)
+ * @param text - 要复制的文本
+ * @returns 是否复制成功
+ */
+async function copyToClipboard(text: string): Promise<boolean> {
+  try {
+    if (navigator.clipboard && window.isSecureContext) {
+      await navigator.clipboard.writeText(text)
+      return true
+    }
+    // 降级方案:使用 textarea
+    const textarea = document.createElement('textarea')
+    textarea.value = text
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-999999px'
+    textarea.style.top = '-999999px'
+    document.body.appendChild(textarea)
+    textarea.focus()
+    textarea.select()
+    const result = document.execCommand('copy')
+    document.body.removeChild(textarea)
+    return result
+  } catch (error) {
+    console.error('复制失败:', error)
+    return false
+  }
+}
+
+/**
  * 复制服务地址
  */
 async function copyServerAddress(): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(serverAddress.value)
+  const success = await copyToClipboard(serverAddress.value)
+  if (success) {
     showSnackbar('服务地址已复制到剪贴板')
-  } catch (error) {
+  } else {
     showSnackbar('复制失败', 'error')
-    console.error('复制失败:', error)
   }
 }
 
@@ -292,12 +389,11 @@ async function copyServerAddress(): Promise<void> {
  */
 async function copyRoute(route: { path: string; method: string }): Promise<void> {
   const fullUrl = `http://${localIp.value}:${serverInfo.value.port}${route.path}`
-  try {
-    await navigator.clipboard.writeText(fullUrl)
+  const success = await copyToClipboard(fullUrl)
+  if (success) {
     showSnackbar('URL已复制到剪贴板')
-  } catch (error) {
+  } else {
     showSnackbar('复制失败', 'error')
-    console.error('复制失败:', error)
   }
 }
 
@@ -306,12 +402,11 @@ async function copyRoute(route: { path: string; method: string }): Promise<void>
  * @param response - 响应数据
  */
 async function copyResponse(response: string): Promise<void> {
-  try {
-    await navigator.clipboard.writeText(response)
+  const success = await copyToClipboard(response)
+  if (success) {
     showSnackbar('响应数据已复制到剪贴板')
-  } catch (error) {
+  } else {
     showSnackbar('复制失败', 'error')
-    console.error('复制失败:', error)
   }
 }
 
@@ -389,6 +484,99 @@ async function removeRoute(index: number): Promise<void> {
     }
   } catch (error) {
     console.error('删除路由失败:', error)
+  }
+}
+
+/**
+ * 打开编辑对话框
+ * @param index - 路由索引
+ */
+function openEditDialog(index: number): void {
+  const route = routes.value[index]
+  editDialog.value = {
+    show: true,
+    index,
+    method: route.method,
+    path: route.path,
+    response: route.response,
+    saving: false,
+    responseError: ''
+  }
+}
+
+/**
+ * 关闭编辑对话框
+ */
+function closeEditDialog(): void {
+  editDialog.value.show = false
+  editDialog.value.responseError = ''
+}
+
+/**
+ * 保存编辑
+ */
+async function saveEdit(): Promise<void> {
+  if (!editDialog.value.path) {
+    return
+  }
+
+  // 验证 JSON 格式
+  if (editDialog.value.response) {
+    try {
+      JSON.parse(editDialog.value.response)
+      editDialog.value.responseError = ''
+    } catch {
+      editDialog.value.responseError = 'JSON 格式错误'
+      return
+    }
+  }
+
+  editDialog.value.saving = true
+
+  try {
+    let responseData = null
+    if (editDialog.value.response) {
+      try {
+        responseData = JSON.parse(editDialog.value.response)
+      } catch {
+        responseData = editDialog.value.response
+      }
+    }
+
+    const route = routes.value[editDialog.value.index]
+    const response = await fetch('/api/mock/routes', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        oldMethod: route.method,
+        oldPath: route.path,
+        method: editDialog.value.method,
+        path: editDialog.value.path,
+        response: responseData
+      })
+    })
+
+    const result = await response.json()
+
+    if (result.success) {
+      // 更新本地数据
+      routes.value[editDialog.value.index] = {
+        method: editDialog.value.method,
+        path: editDialog.value.path,
+        response: editDialog.value.response
+      }
+      closeEditDialog()
+      showSnackbar('路由已更新')
+    } else {
+      showSnackbar(result.message || '更新失败', 'error')
+    }
+  } catch (error) {
+    console.error('更新路由失败:', error)
+    showSnackbar('更新失败', 'error')
+  } finally {
+    editDialog.value.saving = false
   }
 }
 

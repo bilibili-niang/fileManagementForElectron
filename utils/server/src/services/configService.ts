@@ -16,6 +16,8 @@ export interface Config {
     lastIndexed: string | null;
     schedule: string;
   };
+  theme?: string;
+  activeTab?: string;
 }
 
 const CONFIG_FILE = path.join(process.cwd(), 'config.json');
@@ -57,7 +59,10 @@ export class ConfigService {
     await fs.writeFile(CONFIG_FILE, JSON.stringify(config, null, 2), 'utf-8');
   }
 
-  // 测试数据库连接
+  /**
+   * 测试 MySQL 数据库连接
+   * 注意：当前系统已迁移到 SQLite，此方法保留用于未来可能的 MySQL 支持
+   */
   async testDatabaseConnection(config: {
     host: string;
     port: number;

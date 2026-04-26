@@ -3,10 +3,94 @@ import { FileService } from '../services/fileService';
 import { DatabaseService } from '../services/databaseService';
 import fs from 'fs';
 import path from 'path';
+import os from 'os';
+import { execSync } from 'child_process';
 
 const router: IRouter = Router();
 const fileService = new FileService();
 const dbService = new DatabaseService();
+
+/**
+ * 获取所有可用驱动器
+ * Windows: 返回所有盘符如 ['C:', 'D:', 'E:']
+ * Linux/Mac: 返回根目录 ['/']
+ */
+function getAllDrives(): string[] {
+  const platform = os.platform();
+
+  if (platform === 'win32') {
+    try {
+      // 使用 wmic 命令获取所有逻辑磁盘
+      const output = execSync('wmic logicaldisk get name', { encoding: 'utf8' });
+      const drives = output
+        .split('\n')
+        .map(line => line.trim())
+        .filter(line => /^[A-Z]:$/i.test(line))
+        .map(drive => drive.toUpperCase());
+
+      console.log('[Files] Detected drives:', drives);
+      return drives;
+    } catch (error) {
+      console.error('[Files] Failed to get drives:', error);
+      // 降级方案:返回常见盘符
+      return ['C:', 'D:', 'E:'];
+    }
+  } else {
+    // Linux/Mac 返回根目录
+    return ['/'];
+  }
+}
+
+// 获取可用驱动器列表
+router.get('/drives', async (req, res) => {
+  try {
+    const drives = getAllDrives();
+    res.json({ success: true, drives });
+  } catch (error) {
+    console.error('Get drives error:', error);
+    res.status(500).json({ success: false, error: 'Failed to get drives' });
+  }
+});
+
+// 搜索历史相关路由（必须在 /search 之前定义）
+// 获取搜索历史
+router.get('/search/history', async (req, res) => {
+  try {
+    const limit = parseInt(req.query.limit as string) || 10;
+    const history = await dbService.getSearchHistory(limit);
+    res.json({ success: true, history });
+  } catch (error) {
+    console.error('Get search history error:', error);
+    res.status(500).json({ success: false, error: 'Failed to get search history' });
+  }
+});
+
+// 保存搜索历史
+router.post('/search/history', async (req, res) => {
+  try {
+    const { query, searchType } = req.body;
+    if (!query) {
+      return res.status(400).json({ success: false, error: 'Query is required' });
+    }
+    await dbService.saveSearchHistory(query, searchType || 'filename', 0);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Save search history error:', error);
+    res.status(500).json({ success: false, error: 'Failed to save search history' });
+  }
+});
+
+// 删除搜索历史
+router.delete('/search/history/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    await dbService.deleteSearchHistory(parseInt(id));
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete search history error:', error);
+    res.status(500).json({ success: false, error: 'Failed to delete search history' });
+  }
+});
 
 // 搜索文件
 router.get('/search', async (req, res) => {
@@ -15,6 +99,8 @@ router.get('/search', async (req, res) => {
 
     // 如果没有搜索关键词，但有其他筛选条件，使用空字符串作为查询
     const searchQuery = query && typeof query === 'string' ? query : '';
+    
+    console.log('[FileSearch] Search request:', { query: searchQuery, page, pageSize, fileType });
 
     const options: any = {};
     if (fileType) options.fileType = fileType as string;
@@ -27,6 +113,18 @@ router.get('/search', async (req, res) => {
       parseInt(pageSize as string),
       options
     );
+    
+    console.log('[FileSearch] Search result:', { total: result.total, page: result.page });
+
+    // 保存搜索历史（只在第一页且有搜索关键词时保存）
+    if (searchQuery && parseInt(page as string) === 1) {
+      console.log('[FileSearch] Saving search history:', { query: searchQuery, total: result.total });
+      dbService.saveSearchHistory(searchQuery, 'filename', result.total || 0).catch((err: any) => {
+        console.error('[FileSearch] Failed to save search history:', err);
+      });
+    } else {
+      console.log('[FileSearch] Not saving history (no query or not page 1):', { query: searchQuery, page });
+    }
 
     res.json(result);
   } catch (error) {
@@ -50,6 +148,13 @@ router.get('/search-content', async (req, res) => {
       parseInt(pageSize as string)
     );
 
+    // 保存搜索历史（只在第一页时保存）
+    if (parseInt(page as string) === 1) {
+      dbService.saveSearchHistory(keyword, 'content', result.results?.length || 0).catch((err: any) => {
+        console.error('Failed to save search history:', err);
+      });
+    }
+
     res.json(result);
   } catch (error) {
     console.error('Search content error:', error);
@@ -68,11 +173,16 @@ router.get('/content-stats', async (req, res) => {
   }
 });
 
-// 按分类获取文件
-router.get('/category/:category', async (req, res) => {
+// 按分类获取文件（支持路径参数和查询参数）
+router.get('/category/:category?', async (req, res) => {
   try {
-    const { category } = req.params;
+    // 优先从路径参数获取，否则从查询参数获取
+    const category = req.params.category || (req.query.category as string);
     const { page = '1', pageSize = '50' } = req.query;
+
+    if (!category) {
+      return res.status(400).json({ error: 'Category parameter is required' });
+    }
 
     const result = await fileService.getFilesByCategory(
       category,
@@ -101,27 +211,17 @@ router.get('/counts', async (req, res) => {
 // 开始索引 - 立即返回，在后台运行
 router.post('/index/start', async (req, res) => {
   try {
-    const rootsInput = req.body?.roots ?? req.body?.drives;
-    const rootsFromBody = Array.isArray(rootsInput) ? rootsInput : [];
-    const rootsFromConfig = rootsFromBody.length > 0 ? [] : await dbService.getScanRoots();
-    const roots = Array.from(
-      new Set(
-        [...rootsFromBody, ...rootsFromConfig]
-          .filter((x) => typeof x === 'string')
-          .map((x) => x.trim())
-          .filter(Boolean)
-      )
-    );
-
-    if (roots.length === 0) {
-      return res.status(400).json({ error: 'No scan roots configured' });
+    const { drives } = req.body;
+    
+    if (!drives || !Array.isArray(drives) || drives.length === 0) {
+      return res.status(400).json({ error: 'Drives array is required' });
     }
     
     // 立即返回，不等待索引完成
     res.json({ success: true, message: 'Indexing started' });
     
     // 在后台启动索引
-    fileService.startIndexing(roots).catch(error => {
+    fileService.startIndexing(drives).catch(error => {
       console.error('Background indexing error:', error);
     });
   } catch (error) {
@@ -273,27 +373,17 @@ router.post('/open-system', async (req, res) => {
 // 强制重新索引 - 清除所有数据后重新索引
 router.post('/force-reindex', async (req, res) => {
   try {
-    const rootsInput = req.body?.roots ?? req.body?.drives;
-    const rootsFromBody = Array.isArray(rootsInput) ? rootsInput : [];
-    const rootsFromConfig = rootsFromBody.length > 0 ? [] : await dbService.getScanRoots();
-    const roots = Array.from(
-      new Set(
-        [...rootsFromBody, ...rootsFromConfig]
-          .filter((x) => typeof x === 'string')
-          .map((x) => x.trim())
-          .filter(Boolean)
-      )
-    );
+    const { drives } = req.body;
     
-    if (roots.length === 0) {
-      return res.status(400).json({ error: 'No scan roots configured' });
+    if (!drives || !Array.isArray(drives) || drives.length === 0) {
+      return res.status(400).json({ error: 'Drives array is required' });
     }
 
     // 先清除所有数据
     await fileService.clearAllData();
     
     // 开始重新索引
-    await fileService.startIndexing(roots);
+    await fileService.startIndexing(drives);
 
     res.json({ success: true, message: 'Force reindex started' });
   } catch (error: any) {

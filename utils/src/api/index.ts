@@ -10,4 +10,4 @@ export { request, type RequestConfig, type ElectronConfig } from './client'
 export * from './types'
 
 // API 模块
-export { historyApi, searchApi, configApi, fileApi } from './modules'
+export { historyApi, searchApi, configApi, fileApi, fileShareApi, type ShareFile, type FileListResponse } from './modules'

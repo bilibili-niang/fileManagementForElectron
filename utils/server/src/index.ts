@@ -2,6 +2,10 @@ import express from 'express';
 import cors from 'cors';
 import { fileRouter } from './routes/files';
 import { configRouter } from './routes/config';
+import { fileShareRouter } from './routes/fileShare';
+import { devErrorLogRouter } from './routes/devErrorLog';
+import { favoritesRouter } from './routes/favorites';
+import { recentRouter } from './routes/recent';
 import mockRouter, { mockMiddleware, initMockRoutes } from './routes/mock';
 import { initializeDatabase } from './services/databaseInit';
 import net from 'net';
@@ -31,11 +35,21 @@ function isPortAvailable(port: number): Promise<boolean> {
 
 // Middleware
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: '10mb' }));
+
+// Request logging middleware
+app.use((req, res, next) => {
+  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+  next();
+});
 
 // Routes
 app.use('/api/files', fileRouter);
 app.use('/api/config', configRouter);
+app.use('/api/file-share', fileShareRouter);
+app.use(devErrorLogRouter);
+app.use('/api/favorites', favoritesRouter);
+app.use('/api/recent', recentRouter);
 app.use('/api/mock', mockRouter);
 
 /**
@@ -67,6 +81,16 @@ app.get('/api/health', (req, res) => {
   });
 });
 
+// 获取文件共享访问地址
+app.get('/api/file-share/access-info', (req, res) => {
+  const ip = getLocalIpAddress();
+  res.json({
+    success: true,
+    ip,
+    port: PORT
+  });
+});
+
 // Mock middleware - 处理动态模拟路由(放在其他路由之后)
 app.use(mockMiddleware);
 
@@ -90,10 +114,7 @@ async function startServer() {
     await initMockRoutes();
 
     // 启动服务器
-    app.listen(PORT, () => {
-      console.log(`Server started successfully on port ${PORT}`);
-      console.log(`Health check: http://localhost:${PORT}/api/health`);
-    });
+    app.listen(PORT);
   } catch (error) {
     console.error('Failed to start server:', error);
     process.exit(1);

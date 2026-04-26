@@ -291,16 +291,10 @@ async function openFile(item: FileResult) {
 
   let openConfig: { open_method: string; internal_viewer: string | null } | null = null
   try {
-    const isElectron = !!(window as any).electronAPI?.getFileOpenConfig
-    if (isElectron) {
-      const data = await window.electronAPI.getFileOpenConfig(ext)
+    const response = await fetch(`http://localhost:3000/api/files/open-config/${ext}`)
+    if (response.ok) {
+      const data = await response.json()
       openConfig = data.config
-    } else {
-      const response = await fetch(`/api/files/open-config/${encodeURIComponent(ext)}`)
-      if (response.ok) {
-        const data = await response.json()
-        openConfig = data.config
-      }
     }
   } catch (error) {
     console.warn('[FileCategory] 获取文件打开配置失败:', error)

@@ -5,7 +5,7 @@
         <v-card-title>
           <span class="text-h5">数据库配置</span>
           <v-spacer></v-spacer>
-          <v-btn icon="mdi-close" variant="text" @click="dialog = false"></v-btn>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="dialog = false"></v-btn>
         </v-card-title>
       </v-card-item>
 

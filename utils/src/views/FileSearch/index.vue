@@ -1,1034 +1,797 @@
 <template>
-  <v-container fluid class="file-search-container">
-    <!-- 搜索类型 Tab -->
-    <v-row dense>
-      <v-col cols="12" sm="6" md="4" lg="3">
-        <v-card variant="outlined" class="mb-1">
+  <v-container fluid class="file-search-page">
+    <!-- 主布局：三栏结构 -->
+    <div class="main-layout">
+      <!-- 左侧：分类导航侧边栏 -->
+      <aside class="sidebar-section">
+        <CategorySidebar
+          v-model="selectedCategory"
+          @select="handleCategorySelect"
+        />
+      </aside>
+
+      <!-- 中间：主内容区 -->
+      <main class="content-section">
+        <!-- 搜索类型 Tab -->
+        <v-card variant="outlined" class="search-type-card mb-3">
           <v-tabs v-model="searchType" color="primary" grow density="compact">
-            <v-tab value="filename" class="text-none px-2">
+            <v-tab value="filename" class="text-none px-4">
               <v-icon icon="mdi-file-search" size="small" start></v-icon>
               文件名
             </v-tab>
-            <v-tab value="content" class="text-none px-2">
+            <v-tab value="content" class="text-none px-4">
               <v-icon icon="mdi-text-box-search" size="small" start></v-icon>
               文件内容
             </v-tab>
           </v-tabs>
         </v-card>
-      </v-col>
-    </v-row>
 
-    <!-- 文件名搜索 -->
-    <div v-show="searchType === 'filename'">
-      <v-row dense>
-        <v-col cols="12">
-          <v-text-field
-              v-model="searchQuery"
-              label="搜索文件"
-              placeholder="支持语法：文件名 扩展名（如：document pdf）"
-              prepend-inner-icon="mdi-magnify"
-              variant="outlined"
-              density="compact"
-              clearable
-              @update:model-value="onSearchInput"
-              @keydown.enter.prevent="performSearch"
-              hint="示例：report pdf | image jpg | code js"
-              persistent-hint
-          ></v-text-field>
-        </v-col>
-      </v-row>
-
-      <!-- 搜索历史 -->
-      <v-row dense v-if="searchHistory.length > 0">
-        <v-col cols="12">
-          <div class="search-history-bar">
-            <div class="history-chips">
-              <span class="history-label">历史:</span>
-              <v-chip
-                  v-for="item in searchHistory.slice(0, 5)"
-                  :key="item.id"
-                  size="small"
-                  variant="outlined"
-                  color="primary"
-                  class="history-chip"
-                  @click="selectHistory(item.query)"
-              >
-                {{ item.query }}
-                <v-icon
-                    icon="mdi-close"
-                    size="12"
-                    class="ml-1"
-                    @click.stop="deleteHistoryItem(item.id)"
-                ></v-icon>
-              </v-chip>
-              <v-btn
-                  v-if="searchHistory.length > 0"
-                  variant="text"
-                  density="compact"
-                  size="x-small"
-                  color="grey"
-                  @click="clearAllHistory"
-              >
-                清除
-              </v-btn>
-            </div>
-          </div>
-        </v-col>
-      </v-row>
-
-      <v-row dense>
-        <v-col cols="12" sm="6" md="3">
-          <v-select
-              v-model="searchOptions.fileType"
-              :items="fileTypeOptions"
-              label="文件类型"
-              variant="outlined"
-              density="compact"
-              clearable
-              @update:model-value="performSearch"
-          ></v-select>
-        </v-col>
-        <v-col cols="12" sm="6" md="3">
-          <v-text-field
-              v-model="searchOptions.minSize"
-              label="最小大小 (MB)"
-              type="number"
-              variant="outlined"
-              density="compact"
-              clearable
-              @update:model-value="performSearch"
-          ></v-text-field>
-        </v-col>
-        <v-col cols="12" sm="6" md="3">
-          <v-text-field
-              v-model="searchOptions.maxSize"
-              label="最大大小 (MB)"
-              type="number"
-              variant="outlined"
-              density="compact"
-              clearable
-              @update:model-value="performSearch"
-          ></v-text-field>
-        </v-col>
-        <v-col cols="12" sm="6" md="3">
-          <v-btn
-              color="primary"
-              variant="outlined"
-              density="compact"
-              @click="clearFilters"
-              class="mt-1"
-          >
-            <v-icon icon="mdi-filter-remove" size="small" class="mr-1"></v-icon>
-            清除筛选
-          </v-btn>
-        </v-col>
-      </v-row>
-    </div>
-
-    <!-- 文件内容搜索 -->
-    <div v-show="searchType === 'content'">
-      <v-row>
-        <v-col cols="12">
-          <v-text-field
-              v-model="contentQuery"
-              label="搜索文件内容"
-              placeholder="输入关键词搜索文件内容"
-              prepend-inner-icon="mdi-text-box-search"
-              variant="outlined"
-              clearable
-              @update:model-value="onContentSearchInput"
-              @keydown.enter.prevent="performContentSearch"
-              hint="支持文本文件：代码、文档、配置文件等"
-              persistent-hint
-          ></v-text-field>
-        </v-col>
-      </v-row>
-
-      <!-- 内容搜索历史 -->
-      <v-row dense v-if="contentSearchHistory.length > 0">
-        <v-col cols="12">
-          <div class="search-history-bar">
-            <div class="history-chips">
-              <span class="history-label">历史:</span>
-              <v-chip
-                  v-for="item in contentSearchHistory.slice(0, 5)"
-                  :key="'content-'+item.id"
-                  size="small"
-                  variant="outlined"
-                  color="primary"
-                  class="history-chip"
-                  @click="selectContentHistory(item.query)"
-              >
-                {{ item.query }}
-                <v-icon
-                    icon="mdi-close"
-                    size="12"
-                    class="ml-1"
-                    @click.stop="deleteContentHistoryItem(item.id)"
-                ></v-icon>
-              </v-chip>
-              <v-btn
-                  v-if="contentSearchHistory.length > 0"
-                  variant="text"
-                  density="compact"
-                  size="x-small"
-                  color="grey"
-                  @click="clearAllContentHistory"
-              >
-                清除
-              </v-btn>
-            </div>
-          </div>
-        </v-col>
-      </v-row>
-      <v-row>
-        <v-col cols="12">
-          <!-- 内容索引状态 -->
-          <v-alert
-              :type="contentStats.indexedFiles > 0 ? 'success' : 'warning'"
-              variant="tonal"
-              density="compact"
-              class="compact-alert"
-          >
-            <template v-slot:prepend>
-              <v-icon :icon="contentStats.indexedFiles > 0 ? 'mdi-check-circle' : 'mdi-alert'" size="small"></v-icon>
-            </template>
-            <span class="compact-text" v-if="contentStats.indexedFiles > 0">
-                  已索引 {{ contentStats.indexedFiles }}/{{ contentStats.totalFiles }} 个文件
-                  <span v-if="contentStats.lastIndexed">，更新于 {{ formatDate(contentStats.lastIndexed) }}</span>
-                </span>
-            <span class="compact-text" v-else>
-                  尚未建立内容索引，请前往"设置"页面开始索引
-                </span>
-          </v-alert>
-        </v-col>
-      </v-row>
-    </div>
-
-    <v-row v-if="loading">
-      <v-col cols="12" class="text-center">
-        <v-progress-circular indeterminate color="primary"></v-progress-circular>
-      </v-col>
-    </v-row>
-
-    <!-- 文件名搜索结果 - 纯 flex 布局 -->
-    <div v-show="searchType === 'filename' && results.length > 0" class="flex-result-container">
-      <!-- 左侧列表 -->
-      <div class="flex-list-area">
-        <v-data-table
-            :headers="headers"
-            :items="results"
-            :items-per-page="pageSize"
-            :page="currentPage"
-            :loading="loading"
-            @click:row="openFile"
-            hover
-            class="file-table"
+        <!-- 索引进度提示 -->
+        <v-card
+          v-if="indexStatus.isIndexing || indexStatus.totalFiles === 0"
+          variant="outlined"
+          class="mb-3"
+          :color="indexStatus.isIndexing ? 'primary' : 'warning'"
         >
-          <template v-slot:item.name="{ item }">
-            <div
-                class="d-flex align-center file-name-cell"
-                @click="openFile(item)"
-                @contextmenu.prevent="showContextMenu($event, item)"
-            >
-              <FileIcon :extension="item.extension" :size="24" class="mr-2"></FileIcon>
-              <span
-                  class="file-name"
-                  @mouseenter="showPreview($event, item)"
-                  @mouseleave="hidePreview"
-              >{{ item.name }}</span>
+          <v-card-text class="py-2">
+            <div v-if="indexStatus.isIndexing" class="d-flex align-center">
+              <v-progress-circular
+                indeterminate
+                size="20"
+                width="2"
+                color="primary"
+                class="mr-2"
+              ></v-progress-circular>
+              <div class="flex-grow-1">
+                <div class="text-body-2">
+                  正在建立文件索引... {{ indexStatus.indexedFiles }} / {{ indexStatus.totalFiles }}
+                </div>
+                <v-progress-linear
+                  :model-value="indexStatus.totalFiles > 0 ? (indexStatus.indexedFiles / indexStatus.totalFiles * 100) : 0"
+                  height="4"
+                  color="primary"
+                  class="mt-1"
+                ></v-progress-linear>
+                <div class="text-caption text-grey mt-1 text-truncate" style="max-width: 100%;">
+                  {{ indexStatus.currentPath }}
+                </div>
+              </div>
             </div>
-          </template>
-          <template v-slot:item.path="{ item }">
-            <span
-                class="file-path"
-                @click="openFile(item)"
-                @contextmenu.prevent="showContextMenu($event, item)"
-            >{{ item.path }}</span>
-          </template>
-          <template v-slot:item.size="{ item }">
-            {{ formatSize(item.size) }}
-          </template>
-          <template v-slot:item.modified_time="{ item }">
-            {{ formatDate(item.modified_time) }}
-          </template>
-        </v-data-table>
+            <div v-else-if="indexStatus.totalFiles === 0" class="d-flex align-center">
+              <v-icon icon="mdi-information" color="warning" class="mr-2"></v-icon>
+              <span class="text-body-2">正在准备文件索引...</span>
+            </div>
+          </v-card-text>
+        </v-card>
 
+        <!-- 搜索框区域 -->
+        <div v-show="searchType === 'filename'" class="search-area">
+          <SearchBox
+            v-model="searchQuery"
+            :loading="loading"
+            placeholder="搜索文件... 支持语法：ext:pdf size:>10mb date:today path:downloads *.js"
+            :show-advanced-filters="true"
+            @search="performSearch"
+            @clear="clearSearch"
+          />
+
+          <!-- 筛选条件 -->
+          <v-row dense class="filter-row mt-2">
+            <v-col cols="6" sm="4" md="3">
+              <v-text-field
+                  v-model.number="minSizeFilter"
+                  label="最小 (MB)"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+              ></v-text-field>
+            </v-col>
+
+            <v-col cols="6" sm="4" md="3">
+              <v-text-field
+                  v-model.number="maxSizeFilter"
+                  label="最大 (MB)"
+                  type="number"
+                  min="0"
+                  step="0.1"
+                  density="compact"
+                  variant="outlined"
+                  hide-details
+              ></v-text-field>
+            </v-col>
+
+            <v-col cols="12" sm="4" md="6" class="d-flex align-center justify-end gap-2">
+              <v-btn
+                  variant="text"
+                  color="primary"
+                  size="small"
+                  prepend-icon="mdi-magnify"
+                  :loading="loading"
+                  @click="performSearch"
+              >
+                搜索
+              </v-btn>
+              <v-btn
+                  variant="text"
+                  color="grey"
+                  size="small"
+                  prepend-icon="mdi-close-circle"
+                  @click="clearSearch"
+              >
+                清空
+              </v-btn>
+            </v-col>
+          </v-row>
+        </div>
+
+        <!-- 文件内容搜索 -->
+        <div v-show="searchType === 'content'" class="search-area mt-3">
+          <SearchBox
+              v-model="contentQuery"
+              :loading="loadingContent"
+              placeholder="搜索文件内容..."
+              @search="performContentSearch"
+              @clear="clearContentSearch"
+          />
+        </div>
+
+        <!-- 搜索历史标签 -->
+        <div v-if="searchHistory.length > 0 && searchType === 'filename'" class="history-bar mt-3">
+          <span class="history-label">历史:</span>
+          <v-chip
+              v-for="item in searchHistory.slice(0, 8)"
+              :key="item.id"
+              size="small"
+              closable
+              class="mr-1"
+              @click="useHistoryItem(item)"
+              @click:close="removeHistory(item)"
+          >
+            {{ item.query }}
+          </v-chip>
+        </div>
+
+        <!-- 搜索结果统计 -->
+        <v-card v-if="files.length > 0 || loading" variant="flat" class="result-stats mt-3 pa-3">
+          <template v-if="loading">
+            <v-progress-linear indeterminate color="primary"></v-progress-linear>
+          </template>
+          <template v-else-if="files.length > 0">
+            <span class="stats-text">
+              找到 {{ totalFiles }} 个文件
+              <template v-if="selectedCategory !== 'all'">
+                （{{ getCategoryLabel(selectedCategory) }}）
+              </template>
+            </span>
+          </template>
+          <template v-else-if="hasSearched && files.length === 0">
+            <span class="stats-text text-grey">未找到匹配的文件</span>
+          </template>
+        </v-card>
+
+        <!-- 搜索结果列表 -->
+        <v-card variant="outlined" class="results-table mt-3">
+          <v-data-table-server
+              :headers="tableHeaders"
+              :items="files"
+              :items-length="totalFiles"
+              :loading="loading"
+              :page.sync="currentPage"
+              :items-per-page.sync="pageSize"
+              density="compact"
+              hover
+              show-select
+              item-value="id"
+              @update:options="handleTableUpdate"
+              @click:row="(event: any, row: any) => handleRowClick(row.item)"
+          >
+            <!-- 文件名列 -->
+            <template #item.name="{ item }">
+              <div class="d-flex align-center file-name-cell">
+                <FileIcon :extension="item.extension" :size="20" class="mr-2" />
+                <span class="file-name">{{ item.name }}</span>
+              </div>
+            </template>
+
+            <!-- 大小列 -->
+            <template #item.size="{ item }">
+              {{ formatFileSize(item.size) }}
+            </template>
+
+            <!-- 修改时间列 -->
+            <template #item.modified_time="{ item }">
+              {{ formatDate(item.modified_time) }}
+            </template>
+
+            <!-- 操作列 -->
+            <template #item.actions="{ item }">
+              <v-btn
+                  icon="mdi-open-in-app"
+                  variant="text"
+                  size="small"
+                  title="打开文件"
+                  @click.stop="openFile(item)"
+              ></v-btn>
+              <v-btn
+                  icon="mdi-folder-outline"
+                  variant="text"
+                  size="small"
+                  title="在资源管理器中打开"
+                  @click.stop="openInExplorer(item)"
+              ></v-btn>
+              <v-menu>
+                <template #activator="{ props }">
+                  <v-btn
+                      icon="mdi-dots-vertical"
+                      variant="text"
+                      size="small"
+                      v-bind="props"
+                      @click.stop
+                  ></v-btn>
+                </template>
+                <v-list density="compact">
+                  <v-list-item
+                      prepend-icon="mdi-star-outline"
+                      title="添加收藏"
+                      @click="addToFavorites(item)"
+                  ></v-list-item>
+                  <v-list-item
+                      prepend-icon="mdi-content-copy"
+                      title="复制路径"
+                      @click="copyPath(item)"
+                  ></v-list-item>
+                  <v-divider></v-divider>
+                  <v-list-item
+                      prepend-icon="mdi-delete"
+                      title="删除记录"
+                      class="text-error"
+                      @click="confirmDelete(item)"
+                  ></v-list-item>
+                </v-list>
+              </v-menu>
+            </template>
+
+            <!-- 无数据提示 -->
+            <template #no-data>
+              <div class="pa-8 text-center text-grey">
+                <v-icon icon="mdi-file-search-outline" size="48" class="mb-3"></v-icon>
+                <p>输入关键词开始搜索</p>
+              </div>
+            </template>
+          </v-data-table-server>
+        </v-card>
+
+        <!-- 分页控件 -->
         <v-pagination
+            v-if="totalPages > 1"
             v-model="currentPage"
             :length="totalPages"
             :total-visible="7"
+            density="comfortable"
             class="mt-4"
         ></v-pagination>
-      </div>
 
-      <!-- 右侧预览面板 -->
-      <div class="flex-preview-area">
-        <div class="preview-panel-fixed">
-          <div class="preview-title">{{ previewFileName || '预览' }}</div>
-          <div class="preview-content" v-html="previewContent || '<div style=\'padding: 20px; color: #999;\'>鼠标悬停在文件上查看预览</div>'"></div>
-        </div>
-      </div>
+        <!-- 索引进度条 -->
+        <v-progress-linear
+            v-if="indexingProgress > 0 && indexingProgress < 100"
+            :model-value="indexingProgress"
+            color="primary"
+            height="6"
+            rounded
+            class="mt-4"
+        >
+          <template #default="{ value }">
+            <strong>{{ Math.round(value) }}%</strong> - 索引中...
+          </template>
+        </v-progress-linear>
+      </main>
+
+      <!-- 右侧：预览面板 -->
+      <aside v-if="showPreview" class="preview-section">
+        <FilePreviewPanel
+            v-model="showPreview"
+            :file="previewedFile"
+            :content="previewContent"
+            :width="350"
+            :min-width="250"
+            :max-width="600"
+            @close="closePreview"
+        />
+      </aside>
     </div>
 
-    <!-- 文件内容搜索结果 -->
-    <v-row v-show="searchType === 'content' && contentResults.length > 0">
-      <v-col cols="12">
-        <v-list class="content-search-list">
-          <v-list-item
-              v-for="item in contentResults"
-              :key="item.id"
-              @click="openFile(item)"
-              @mouseenter="showPreview($event, item)"
-              @mouseleave="hidePreview"
-              class="content-result-item"
-          >
-            <template v-slot:prepend>
-              <FileIcon :extension="item.extension" :size="32" class="mr-4"></FileIcon>
-            </template>
+    <!-- 删除确认对话框 -->
+    <v-dialog v-model="deleteDialogVisible" max-width="400">
+      <v-card>
+        <v-card-title class="headline">确认删除</v-card-title>
+        <v-card-text>
+          确定要删除文件 "{{ deleteTarget?.name }}" 吗？
+          <br><br>
+          此操作仅从数据库中移除该文件的索引记录，不会删除实际文件。
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="deleteDialogVisible = false">取消</v-btn>
+          <v-btn color="error" variant="text" :loading="deleting" @click="confirmDeleteAction">确认删除</v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
-            <v-list-item-title class="d-flex align-center">
-              <span class="file-name">{{ item.name }}</span>
-              <v-chip size="small" color="primary" class="ml-2">
-                {{ item.matchCount }} 处匹配
-              </v-chip>
-            </v-list-item-title>
-
-            <v-list-item-subtitle class="mt-1">
-              <div class="file-path">{{ item.path }}</div>
-              <div class="content-preview mt-2">{{ item.contentPreview }}</div>
-            </v-list-item-subtitle>
-
-            <template v-slot:append>
-              <div class="text-right">
-                <div class="text-caption">{{ formatSize(item.size) }}</div>
-                <div class="text-caption">{{ formatDate(item.modified_time) }}</div>
-              </div>
-            </template>
-          </v-list-item>
-        </v-list>
-
-        <v-pagination
-            v-model="contentPage"
-            :length="contentTotalPages"
-            :total-visible="7"
-            class="mt-4"
-        ></v-pagination>
-      </v-col>
-    </v-row>
-
-    <!-- 空状态提示 - 文件名搜索 -->
-    <v-row v-show="searchType === 'filename' && !loading && results.length === 0">
-      <v-col cols="12" class="text-center text-grey">
-        <v-icon icon="mdi-file-search-outline" size="64" class="mb-4"></v-icon>
-        <p>未找到匹配的文件</p>
-      </v-col>
-    </v-row>
-
-    <!-- 空状态提示 - 文件内容搜索 -->
-    <v-row v-show="searchType === 'content' && !loading && contentResults.length === 0">
-      <v-col cols="12" class="text-center text-grey">
-        <v-icon icon="mdi-file-search-outline" size="64" class="mb-4"></v-icon>
-        <p>未找到匹配的文件</p>
-      </v-col>
-    </v-row>
-
-    <v-row v-if="indexProgress.show">
-      <v-col cols="12">
-        <v-alert type="info" variant="tonal" class="mt-4">
-          <div class="d-flex align-center">
-            <v-progress-linear
-                :model-value="indexProgress.progress * 100"
-                color="primary"
-                class="flex-grow-1 mr-4"
-            ></v-progress-linear>
-            <span>{{ Math.round(indexProgress.progress * 100) }}%</span>
-          </div>
-          <div class="text-caption mt-2">
-            正在索引：{{ indexProgress.currentPath }}
-          </div>
-        </v-alert>
-      </v-col>
-    </v-row>
-
-    <!-- 右键菜单 -->
-    <v-menu
-        v-model="contextMenu.show"
-        :activator="contextMenuActivator"
-        :location="contextMenu.location"
-        transition="scale-transition"
-        :close-on-content-click="true"
-        :close-on-click-outside="true"
+    <!-- SnackBar 提示 -->
+    <v-snackbar
+        v-model="snackbar.visible"
+        :color="snackbar.color"
+        :timeout="3000"
+        location="top"
     >
-      <v-list density="compact" class="context-menu-list">
-        <v-list-item @click="handleOpenFile" class="context-menu-item">
-          <template v-slot:prepend>
-            <v-icon icon="mdi-open-in-app" size="small"></v-icon>
-          </template>
-          <v-list-item-title>打开</v-list-item-title>
-        </v-list-item>
-        <v-list-item @click="handleOpenInExplorer" class="context-menu-item">
-          <template v-slot:prepend>
-            <v-icon icon="mdi-folder-open" size="small"></v-icon>
-          </template>
-          <v-list-item-title>在文件资源管理器中打开</v-list-item-title>
-        </v-list-item>
-      </v-list>
-    </v-menu>
-
-
+      {{ snackbar.message }}
+    </v-snackbar>
   </v-container>
 </template>
 
 <script setup lang="ts">
-import {ref, watch, onMounted, onUnmounted, computed, inject} from 'vue'
-import {debounce} from 'lodash-es'
+/**
+ * 文件搜索页面 - 增强版
+ * 支持分类浏览、高级搜索语法、增强预览面板
+ */
+
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { searchApi } from '@/api'
+import type { SearchResult, FileCountByCategory } from '@/api/types'
+import CategorySidebar from './components/CategorySidebar/index.tsx'
+import SearchBox from './components/SearchBox/index.tsx'
+import FilePreviewPanel from './components/FilePreviewPanel/index.tsx'
 import FileIcon from '@/components/FileIcon/index.vue'
-import {historyApi, configApi} from '@/api'
+import { favoritesApi } from '@/api/modules/favorites'
+import { recentApi } from '@/api/modules/favorites'
+import { CATEGORY_CONFIGS, type FileCategory } from '@/utils/fileCategory'
 
-// 调试日志工具
-async function debugLog(component: string, message: string, data?: any) {
-  try {
-    await configApi.addDebugLog({component, message, data})
-  } catch (e) {
-    console.error('Debug log failed:', e)
-  }
-}
+// ==================== 类型定义 ====================
 
-interface FileResult {
+interface FileItem {
   id: number
   name: string
   path: string
   extension: string
   size: number
   modified_time: string
-  contentPreview?: string
-  matchCount?: number
+  created_time: string
 }
 
-const searchType = ref('filename')
+interface HistoryItem {
+  id: number
+  query: string
+  search_type: string
+}
+
+interface SnackbarState {
+  visible: boolean
+  message: string
+  color: string
+}
+
+// ==================== 响应式状态 ====================
+
+/** 搜索类型 */
+const searchType = ref<'filename' | 'content'>('filename')
+
+/** 文件名搜索关键词 */
 const searchQuery = ref('')
+
+/** 内容搜索关键词 */
 const contentQuery = ref('')
-const results = ref<FileResult[]>([])
-const contentResults = ref<FileResult[]>([])
+
+/** 当前选中的分类 */
+const selectedCategory = ref<FileCategory>('all')
+
+/** 文件类型筛选 */
+const fileTypeFilter = ref<string | null>(null)
+
+/** 最小文件大小筛选（MB） */
+const minSizeFilter = ref<number | null>(null)
+
+/** 最大文件大小筛选（MB） */
+const maxSizeFilter = ref<number | null>(null)
+
+/** 加载状态 */
 const loading = ref(false)
+const loadingContent = ref(false)
+
+/** 搜索结果 */
+const files = ref<FileItem[]>([])
+
+/** 总数 */
+const totalFiles = ref(0)
+
+/** 分页 */
 const currentPage = ref(1)
-const contentPage = ref(1)
 const pageSize = ref(50)
-const totalPages = ref(0)
-const contentTotalPages = ref(0)
-const indexProgress = ref({
-  show: false,
-  progress: 0,
-  currentPath: ''
-})
+const totalPages = computed(() => Math.ceil(totalFiles.value / pageSize.value))
 
-// 搜索历史相关
-const searchHistory = ref<Array<{
-  id: number
-  query: string
-  search_type: string
-  result_count: number
-  created_at: string
-}>>([])
+/** 是否已执行过搜索 */
+const hasSearched = ref(false)
 
-// 内容搜索历史相关
-const contentSearchHistory = ref<Array<{
-  id: number
-  query: string
-  search_type: string
-  result_count: number
-  created_at: string
-}>>([])
+/** 搜索历史 */
+const searchHistory = ref<HistoryItem[]>([])
 
-/**
- * 右键菜单状态
- */
-const contextMenu = ref({
-  show: false,
-  location: 'bottom' as string,
-  selectedItem: null as FileResult | null
-})
-
-/**
- * 右键菜单触发元素
- */
-const contextMenuActivator = ref<HTMLElement | null>(null)
-
-/**
- * 预览面板状态 - 固定右侧布局
- */
-const previewVisible = ref(false)
-const previewFileName = ref('')
+/** 预览相关 */
+const showPreview = ref(false)
+const previewedFile = ref<FileItem | null>(null)
 const previewContent = ref('')
-const previewCurrentItem = ref<FileResult | null>(null)
-
-/**
- * 预览延迟定时器
- */
 let previewTimeout: ReturnType<typeof setTimeout> | null = null
 
-/**
- * 内容索引统计
- */
-const contentStats = ref({
-  totalFiles: 0,
-  indexedFiles: 0,
-  lastIndexed: null as string | null
+/** 删除对话框 */
+const deleteDialogVisible = ref(false)
+const deleteTarget = ref<FileItem | null>(null)
+const deleting = ref(false)
+
+/** 索引进度 */
+const indexingProgress = ref(0)
+
+/** 提示信息 */
+const snackbar = ref<SnackbarState>({
+  visible: false,
+  message: '',
+  color: 'info'
 })
 
-const searchOptions = ref({
-  fileType: '',
-  minSize: '',
-  maxSize: ''
-})
+/** 选中的行 */
+const selectedRows = ref<number[]>([])
+
+// ==================== 表格配置 ====================
+
+const tableHeaders = [
+  { title: '文件名', key: 'name', sortable: true },
+  { title: '大小', key: 'size', sortable: true, width: '100px' },
+  { title: '修改时间', key: 'modified_time', sortable: true, width: '180px' },
+  { title: '操作', key: 'actions', sortable: false, width: '150px', align: 'end' as const }
+]
 
 const fileTypeOptions = [
-  {title: '图片', value: 'image'},
-  {title: '文档', value: 'document'},
-  {title: '代码', value: 'code'},
-  {title: '视频', value: 'video'},
-  {title: '音频', value: 'audio'},
-  {title: '压缩包', value: 'archive'},
-  {title: '可执行文件', value: 'executable'}
+  { label: '图片', value: 'image' },
+  { label: '视频', value: 'video' },
+  { label: '音频', value: 'audio' },
+  { label: '文档', value: 'document' },
+  { label: '代码', value: 'code' },
+  { label: '压缩包', value: 'archive' },
+  { label: '可执行', value: 'executable' }
 ]
 
-const hasFilters = computed(() => {
-  return searchOptions.value.fileType ||
-      searchOptions.value.minSize ||
-      searchOptions.value.maxSize
-})
+// ==================== 方法 ====================
 
 /**
- * 监听筛选条件变化
+ * 显示提示消息
  */
-watch(() => searchOptions.value, (newOptions, oldOptions) => {
-  if (searchQuery.value || hasFilters.value) {
-    currentPage.value = 1
-    performSearch()
+function showMessage(message: string, color: string = 'info'): void {
+  snackbar.value = {
+    visible: true,
+    message,
+    color
   }
-}, {deep: true})
+}
 
-const headers = [
-  {title: '文件名', key: 'name', sortable: true, align: 'start'},
-  {title: '路径', key: 'path', sortable: true, align: 'start'},
-  {title: '大小', key: 'size', sortable: true, align: 'start'},
-  {title: '修改时间', key: 'modified_time', sortable: true, align: 'start'}
-]
-
-const openFileEditor = inject('openFileEditor') as (path: string, name: string) => void
-const showSnackbar = inject('showSnackbar') as (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void
-
-let searchTimeout: ReturnType<typeof setTimeout> | null = null
-
-const debouncedContentSearch = debounce((value: string) => {
-  contentQuery.value = value
-  if (value) {
-    performContentSearch()
-  } else {
-    contentResults.value = []
+/**
+ * 格式化文件大小
+ */
+function formatFileSize(bytes: number): string {
+  if (!bytes) return '0 B'
+  const units = ['B', 'KB', 'MB', 'GB']
+  let i = 0
+  while (bytes >= 1024 && i < units.length - 1) {
+    bytes /= 1024
+    i++
   }
-}, 500)
+  return `${bytes.toFixed(1)} ${units[i]}`
+}
 
-watch(searchQuery, () => {
+/**
+ * 格式化日期
+ */
+function formatDate(dateStr: string): string {
+  if (!dateStr) return ''
+  const date = new Date(dateStr)
+  return date.toLocaleDateString('zh-CN') + ' ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+}
+
+/**
+ * 获取分类显示名称
+ */
+function getCategoryLabel(category: FileCategory): string {
+  if (category === 'all') return '全部'
+  const config = CATEGORY_CONFIGS.find(c => c.key === category)
+  return config?.label || category
+}
+
+/**
+ * 处理分类选择
+ */
+async function handleCategorySelect(category: FileCategory): Promise<void> {
+  selectedCategory.value = category
   currentPage.value = 1
-})
 
-watch(contentQuery, () => {
-  contentPage.value = 1
-})
-
-function clearFilters() {
-  searchOptions.value = {
-    fileType: '',
-    minSize: '',
-    maxSize: ''
-  }
-  performSearch()
-}
-
-async function performSearch() {
-  if (!searchQuery.value.trim() && !hasFilters.value) {
-    results.value = []
-    return
-  }
-
-  loading.value = true
-  try {
-    const options: any = {}
-    if (searchOptions.value.fileType) {
-      options.fileType = searchOptions.value.fileType
+  if (category === 'all') {
+    if (searchQuery.value) {
+      await performSearch()
     }
-    if (searchOptions.value.minSize) {
-      options.minSize = parseInt(searchOptions.value.minSize) * 1024 * 1024
-    }
-    if (searchOptions.value.maxSize) {
-      options.maxSize = parseInt(searchOptions.value.maxSize) * 1024 * 1024
-    }
-
-    const data = await window.electronAPI.searchFiles(
-        searchQuery.value,
-        currentPage.value,
-        pageSize.value,
-        options
-    )
-    await debugLog('FileSearch', 'API response received', {query: searchQuery.value, dataKeys: Object.keys(data)})
-    results.value = data.files || []
-    totalPages.value = data.totalPages || 0
-
-    // 保存搜索历史
-    await debugLog('FileSearch', 'About to save history', {query: searchQuery.value, count: results.value.length})
-    await saveSearchHistory(searchQuery.value, 'filename', results.value.length)
-    await debugLog('FileSearch', 'History saved successfully')
-  } catch (error) {
-    console.error('Search failed:', error)
-    showSnackbar('搜索失败：' + (error as Error).message, 'error')
-  } finally {
-    loading.value = false
-  }
-}
-
-async function performContentSearch() {
-  if (!contentQuery.value.trim()) {
-    contentResults.value = []
-    return
-  }
-
-  loading.value = true
-  try {
-    const data = await window.electronAPI.searchFileContent(
-        contentQuery.value,
-        contentPage.value,
-        pageSize.value
-    )
-    contentResults.value = data.results || []
-    contentTotalPages.value = data.totalPages || 0
-
-    // 保存搜索历史
-    await saveSearchHistory(contentQuery.value, 'content', contentResults.value.length)
-  } catch (error) {
-    console.error('Content search failed:', error)
-    showSnackbar('内容搜索失败：' + (error as Error).message, 'error')
-  } finally {
-    loading.value = false
-  }
-}
-
-function openFile(item: FileResult) {
-  if (openFileEditor) {
-    openFileEditor(item.path, item.name)
   } else {
-    const fullPath = `${item.path}\\${item.name}`
-    window.electronAPI.openFile(fullPath)
+    await loadByCategory(category)
   }
 }
 
-function formatSize(bytes: number): string {
-  if (bytes === 0) return '0 B'
-  const k = 1024
-  const sizes = ['B', 'KB', 'MB', 'GB']
-  const i = Math.floor(Math.log(bytes) / Math.log(k))
-  return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i]
-}
-
-function formatDate(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleString('zh-CN')
-}
-
-// ==================== 搜索历史功能 ====================
-
-// 加载搜索历史
-async function loadSearchHistory() {
+/**
+ * 按分类加载文件
+ */
+async function loadByCategory(category: FileCategory): Promise<void> {
+  loading.value = true
   try {
-    const data = await historyApi.getHistory('filename', 20)
-    if (data.success) {
-      searchHistory.value = data.history
+    const response = await searchApi.getFilesByCategory(
+      category,
+      currentPage.value,
+      pageSize.value
+    )
+
+    if (response.success) {
+      files.value = response.files.map((f: any) => ({
+        id: f.id,
+        name: f.name,
+        path: f.path,
+        extension: f.extension,
+        size: f.size,
+        modified_time: f.modified_time,
+        created_time: f.created_time
+      }))
+      totalFiles.value = response.total
+      hasSearched.value = true
     }
   } catch (error) {
-    console.error('Load search history failed:', error)
+    console.error('[FileSearch] Failed to load by category:', error)
+    showMessage('加载失败', 'error')
+  } finally {
+    loading.value = false
   }
 }
 
-// 保存搜索历史
-async function saveSearchHistory(query: string, searchType: string, resultCount: number) {
-  await debugLog('SearchHistory', 'Saving history', {query, searchType, resultCount})
-  if (!query.trim()) {
-    await debugLog('SearchHistory', 'Query is empty, skipping')
-    return
-  }
+/**
+ * 执行文件名搜索
+ */
+async function performSearch(): Promise<void> {
+  if (!searchQuery.value.trim() && !selectedCategory.value) return
+
+  loading.value = true
+  hasSearched.value = true
 
   try {
-    const result = await historyApi.addHistory({query, searchType, resultCount})
-    await debugLog('SearchHistory', 'Save result', {result})
+    const params: Record<string, any> = {
+      query: searchQuery.value.trim(),
+      page: currentPage.value,
+      pageSize: pageSize.value
+    }
 
-    // 保存成功后重新加载历史记录
-    if (searchType === 'filename') {
-      await loadSearchHistory()
-    } else {
-      await loadContentSearchHistory()
+    if (fileTypeFilter.value) {
+      params.fileType = fileTypeFilter.value
+    }
+
+    if (minSizeFilter.value !== null) {
+      params.minSize = minSizeFilter.value
+    }
+
+    if (maxSizeFilter.value !== null) {
+      params.maxSize = maxSizeFilter.value
+    }
+
+    const response = await searchApi.search(params)
+
+    if (response.success) {
+      files.value = response.files.map((f: any) => ({
+        id: f.id,
+        name: f.name,
+        path: f.path,
+        extension: f.extension,
+        size: f.size,
+        modified_time: f.modified_time,
+        created_time: f.created_time
+      }))
+      totalFiles.value = response.total
+
+      // 记录搜索历史
+      if (searchQuery.value.trim()) {
+        await saveSearchHistory(searchQuery.value.trim(), 'filename')
+      }
     }
   } catch (error) {
-    await debugLog('SearchHistory', 'Save failed', {error: (error as Error).message})
+    console.error('[FileSearch] Search error:', error)
+    showMessage('搜索失败', 'error')
+  } finally {
+    loading.value = false
   }
 }
 
-// 删除单条历史
-async function deleteHistoryItem(id: number) {
+/**
+ * 执行内容搜索
+ */
+async function performContentSearch(): Promise<void> {
+  if (!contentQuery.value.trim()) return
+
+  loadingContent.value = true
+  hasSearched.value = true
+
   try {
-    await historyApi.deleteHistory(id)
-    // 重新加载历史
+    const response = await searchApi.searchContent({
+      query: contentQuery.value.trim(),
+      page: currentPage.value,
+      pageSize: pageSize.value
+    })
+
+    if (response.success) {
+      files.value = response.results.map((r: any) => ({
+        id: r.file_id,
+        name: r.filename,
+        path: r.filepath,
+        extension: r.filepath.split('.').pop() || '',
+        size: 0,
+        modified_time: '',
+        created_time: ''
+      }))
+      totalFiles.value = response.total
+
+      await saveSearchHistory(contentQuery.value.trim(), 'content')
+    }
+  } catch (error) {
+    console.error('[FileSearch] Content search error:', error)
+    showMessage('内容搜索失败', 'error')
+  } finally {
+    loadingContent.value = false
+  }
+}
+
+/**
+ * 保存搜索历史
+ */
+async function saveSearchHistory(query: string, type: string): Promise<void> {
+  try {
+    await searchApi.saveSearchHistory({ query, search_type: type })
     await loadSearchHistory()
   } catch (error) {
-    console.error('Delete history item failed:', error)
+    console.error('[FileSearch] Failed to save history:', error)
   }
 }
 
-// 清除全部历史
-async function clearAllHistory() {
+/**
+ * 加载搜索历史
+ */
+async function loadSearchHistory(): Promise<void> {
   try {
-    await historyApi.clearHistory()
-    searchHistory.value = []
-    showSnackbar('搜索历史已清除', 'success')
+    const response = await searchApi.getSearchHistory(10)
+    if (response.success) {
+      searchHistory.value = response.history
+    }
   } catch (error) {
-    console.error('Clear history failed:', error)
-    showSnackbar('清除历史失败', 'error')
+    console.error('[FileSearch] Failed to load history:', error)
   }
 }
 
-// 选择历史记录
-function selectHistory(query: string) {
-  searchQuery.value = query
-  performSearch()
-}
-
-// 搜索输入处理 - 实时搜索
-const debouncedSearch = debounce((value: string) => {
-  if (value || hasFilters.value) {
-    performSearch()
+/**
+ * 使用历史搜索项
+ */
+function useHistoryItem(item: HistoryItem): void {
+  if (item.search_type === 'content') {
+    contentQuery.value = item.query
+    searchType.value = 'content'
+    performContentSearch()
   } else {
-    results.value = []
+    searchQuery.value = item.query
+    searchType.value = 'filename'
+    performSearch()
   }
-}, 300)
-
-function onSearchInput(value: string) {
-  debouncedSearch(value)
 }
 
-// ==================== 内容搜索历史功能 ====================
-
-// 加载内容搜索历史
-async function loadContentSearchHistory() {
+/**
+ * 移除历史项
+ */
+async function removeHistory(item: HistoryItem): Promise<void> {
   try {
-    const data = await historyApi.getHistory('content', 20)
-    if (data.success) {
-      contentSearchHistory.value = data.history
-    }
+    await searchApi.removeSearchHistory(item.id)
+    await loadSearchHistory()
   } catch (error) {
-    console.error('Load content search history failed:', error)
+    console.error('[FileSearch] Failed to remove history:', error)
   }
 }
 
-// 删除单条内容搜索历史
-async function deleteContentHistoryItem(id: number) {
+/**
+ * 清空搜索
+ */
+function clearSearch(): void {
+  searchQuery.value = ''
+  fileTypeFilter.value = null
+  minSizeFilter.value = null
+  maxSizeFilter.value = null
+  files.value = []
+  totalFiles.value = 0
+  hasSearched.value = false
+}
+
+/**
+ * 清空内容搜索
+ */
+function clearContentSearch(): void {
+  contentQuery.value = ''
+  files.value = []
+  totalFiles.value = 0
+  hasSearched.value = false
+}
+
+/**
+ * 处理表格更新事件（排序、分页）
+ */
+function handleTableUpdate(options: any): void {
+  currentPage.value = options.page
+  pageSize.value = options.itemsPerPage
+
+  if (selectedCategory.value !== 'all') {
+    loadByCategory(selectedCategory.value)
+  } else if (searchType.value === 'filename' && searchQuery.value) {
+    performSearch()
+  } else if (searchType.value === 'content' && contentQuery.value) {
+    performContentSearch()
+  }
+}
+
+/**
+ * 处理行点击（显示预览）
+ */
+function handleRowClick(file: FileItem): void {
+  previewedFile.value = file
+  showPreview.value = true
+  loadPreviewContent(file)
+
+  // 记录访问
+  recentApi.recordAccess({
+    file_id: file.id,
+    path: file.path,
+    name: file.name,
+    access_type: 'preview'
+  }).catch(console.error)
+}
+
+/**
+ * 加载预览内容
+ */
+async function loadPreviewContent(file: FileItem): Promise<void> {
+  previewContent.value = '<div class="text-center py-8"><v-progress-circular indeterminate /></div>'
+
   try {
-    await historyApi.deleteHistory(id)
-    await loadContentSearchHistory()
-  } catch (error) {
-    console.error('Delete content history item failed:', error)
-  }
-}
+    const ext = file.extension.toLowerCase()
+    const imageExts = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp']
 
-// 清除全部内容搜索历史
-async function clearAllContentHistory() {
-  try {
-    await historyApi.clearHistory()
-    contentSearchHistory.value = []
-    showSnackbar('搜索历史已清除', 'success')
-  } catch (error) {
-    console.error('Clear content history failed:', error)
-    showSnackbar('清除历史失败', 'error')
-  }
-}
-
-// 选择内容搜索历史记录
-function selectContentHistory(query: string) {
-  contentQuery.value = query
-  performContentSearch()
-}
-
-function onContentSearchInput(value: string) {
-  debouncedContentSearch(value)
-}
-
-// 格式化时间
-function formatTime(dateString: string): string {
-  const date = new Date(dateString)
-  const now = new Date()
-  const diff = now.getTime() - date.getTime()
-
-  // 小于1小时显示"X分钟前"
-  if (diff < 60 * 60 * 1000) {
-    const minutes = Math.floor(diff / (60 * 1000))
-    return minutes < 1 ? '刚刚' : `${minutes}分钟前`
-  }
-
-  // 小于24小时显示"X小时前"
-  if (diff < 24 * 60 * 60 * 1000) {
-    const hours = Math.floor(diff / (60 * 60 * 1000))
-    return `${hours}小时前`
-  }
-
-  // 小于7天显示"X天前"
-  if (diff < 7 * 24 * 60 * 60 * 1000) {
-    const days = Math.floor(diff / (24 * 60 * 60 * 1000))
-    return `${days}天前`
-  }
-
-  // 否则显示日期
-  return date.toLocaleDateString('zh-CN')
-}
-
-/**
- * 显示右键菜单
- */
-function showContextMenu(event: MouseEvent, item: FileResult) {
-  event.preventDefault()
-  contextMenu.value.selectedItem = item
-  contextMenuActivator.value = event.currentTarget as HTMLElement
-  contextMenu.value.show = true
-}
-
-/**
- * 处理打开文件
- */
-function handleOpenFile() {
-  if (contextMenu.value.selectedItem) {
-    openFile(contextMenu.value.selectedItem)
-  }
-  contextMenu.value.show = false
-}
-
-/**
- * 处理在文件资源管理器中打开
- */
-function handleOpenInExplorer() {
-  if (contextMenu.value.selectedItem) {
-    const item = contextMenu.value.selectedItem
-    const fullPath = `${item.path}\\${item.name}`
-    window.electronAPI.showItemInFolder(fullPath)
-  }
-  contextMenu.value.show = false
-}
-
-/**
- * 显示预览 - 固定右侧布局
- */
-function showPreview(event: MouseEvent, item: FileResult) {
-  console.log('[Preview] Mouse enter:', item.name)
-
-  // 清除之前的定时器
-  if (previewTimeout) {
-    clearTimeout(previewTimeout)
-  }
-
-  // 如果已经在显示同一个文件，不重复处理
-  if (previewVisible.value && previewCurrentItem.value?.id === item.id) {
-    console.log('[Preview] Already showing same file')
-    return
-  }
-
-  // 延迟显示预览
-  previewTimeout = setTimeout(() => {
-    console.log('[Preview] Showing preview for:', item.name)
-    previewFileName.value = item.name
-    previewCurrentItem.value = item
-
-    // 根据文件类型生成预览内容
-    generatePreview(item).then(content => {
-      console.log('[Preview] Content generated, length:', content.length)
-      previewContent.value = content
-      previewVisible.value = true
-      console.log('[Preview] Show state:', previewVisible.value)
-    }).catch(err => {
-      console.error('[Preview] Error:', err)
-    })
-  }, 200)
-}
-
-/**
- * 隐藏预览
- */
-function hidePreview() {
-  // 延迟隐藏
-  previewTimeout = setTimeout(() => {
-    previewVisible.value = false
-    previewCurrentItem.value = null
-  }, 300)
-}
-
-/**
- * 生成预览内容
- */
-async function generatePreview(item: FileResult): Promise<string> {
-  const ext = item.extension.toLowerCase()
-  const fullPath = `${item.path}\\${item.name}`
-
-  // 图片预览
-  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico'].includes(ext)) {
-    return `<img src="file://${fullPath}" style="max-width: 100%; max-height: 280px; object-fit: contain; border-radius: 4px;" />`
-  }
-
-  // 视频预览
-  if (['mp4', 'webm', 'ogg', 'mov', 'mkv', 'avi'].includes(ext)) {
-    return `
-      <video controls style="max-width: 100%; max-height: 280px; border-radius: 4px;">
-        <source src="file://${fullPath}">
-        您的浏览器不支持视频播放
-      </video>
-      <div style="margin-top: 8px; font-size: 12px; color: #666;">
-        格式: ${ext.toUpperCase()} | 大小: ${formatSize(item.size)}
-      </div>
-    `
-  }
-
-  // 音频预览
-  if (['mp3', 'wav', 'flac', 'aac', 'ogg', 'm4a', 'wma'].includes(ext)) {
-    return `
-      <audio controls style="width: 100%; margin: 10px 0;">
-        <source src="file://${fullPath}">
-        您的浏览器不支持音频播放
-      </audio>
-      <div style="font-size: 12px; color: #666; text-align: center;">
-        ${item.name} | ${formatSize(item.size)}
-      </div>
-    `
-  }
-
-  // PDF 预览
-  if (ext === 'pdf') {
-    return `
-      <div style="text-align: center; padding: 20px;">
-        <v-icon icon="mdi-file-pdf-box" size="64" color="red"></v-icon>
-        <div style="margin-top: 12px; font-weight: 500;">PDF 文档</div>
-        <div style="margin-top: 8px; font-size: 12px; color: #666;">
-          ${item.name}<br>
-          大小: ${formatSize(item.size)}
-        </div>
-        <div style="margin-top: 12px; font-size: 12px; color: #999;">
-          点击打开查看完整内容
-        </div>
-      </div>
-    `
-  }
-
-  // Office 文档预览
-  if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
-    const iconMap: Record<string, string> = {
-      'doc': 'mdi-file-word', 'docx': 'mdi-file-word',
-      'xls': 'mdi-file-excel', 'xlsx': 'mdi-file-excel',
-      'ppt': 'mdi-file-powerpoint', 'pptx': 'mdi-file-powerpoint'
-    }
-    const colorMap: Record<string, string> = {
-      'doc': '#2b579a', 'docx': '#2b579a',
-      'xls': '#217346', 'xlsx': '#217346',
-      'ppt': '#d24726', 'pptx': '#d24726'
-    }
-    return `
-      <div style="text-align: center; padding: 20px;">
-        <div style="font-size: 48px; color: ${colorMap[ext] || '#666'};">
-          📄
-        </div>
-        <div style="margin-top: 12px; font-weight: 500;">${ext.toUpperCase()} 文档</div>
-        <div style="margin-top: 8px; font-size: 12px; color: #666;">
-          ${item.name}<br>
-          大小: ${formatSize(item.size)}
-        </div>
-      </div>
-    `
-  }
-
-  // 压缩包预览
-  if (['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'].includes(ext)) {
-    return `
-      <div style="text-align: center; padding: 20px;">
-        <div style="font-size: 48px;">📦</div>
-        <div style="margin-top: 12px; font-weight: 500;">压缩文件</div>
-        <div style="margin-top: 8px; font-size: 12px; color: #666;">
-          ${item.name}<br>
-          大小: ${formatSize(item.size)}
-        </div>
-      </div>
-    `
-  }
-
-  // 可执行文件预览
-  if (['exe', 'msi', 'dmg', 'pkg', 'deb', 'rpm', 'appimage'].includes(ext)) {
-    return `
-      <div style="text-align: center; padding: 20px;">
-        <div style="font-size: 48px;">⚙️</div>
-        <div style="margin-top: 12px; font-weight: 500;">可执行文件</div>
-        <div style="margin-top: 8px; font-size: 12px; color: #666;">
-          ${item.name}<br>
-          大小: ${formatSize(item.size)}
-        </div>
-      </div>
-    `
-  }
-
-  // 文本文件预览 - 编辑器风格
-  const textExts = ['txt', 'md', 'json', 'xml', 'yaml', 'yml', 'ini', 'conf', 'log',
-    'js', 'ts', 'vue', 'jsx', 'tsx', 'css', 'scss', 'sass', 'less', 'html', 'htm',
-    'py', 'java', 'c', 'cpp', 'h', 'hpp', 'cs', 'go', 'rs', 'rb', 'php', 'swift', 'kt',
-    'sh', 'bat', 'ps1', 'cmd', 'sql', 'dockerfile', 'makefile', 'cmake', 'gradle']
-  if (textExts.includes(ext)) {
-    try {
-      const isElectron = !!(window as any).electronAPI?.readFile
-      let data: any
-      if (isElectron) {
-        data = await window.electronAPI.readFile(fullPath)
-      } else {
-        const response = await fetch(`/api/files/content?path=${encodeURIComponent(fullPath)}`)
-        data = await response.json()
+    if (imageExts.includes(ext)) {
+      const response = await searchApi.getImageBuffer(file.path)
+      if (response.success && response.data) {
+        const blob = new Blob([new Uint8Array(response.data)], { type: `image/${ext}` })
+        previewContent.value = `<img src="${URL.createObjectURL(blob)}" alt="${file.name}" />`
       }
-
-      if (data.success && data.content) {
-        const allLines = data.content.split('\n')
-        const displayLines = allLines.slice(0, 50) // 显示前50行
-        const totalLines = allLines.length
-
-        // 生成带行号的代码预览
-        const codeHtml = displayLines.map((line: string, index: number) => {
-          const lineNum = index + 1
-          const escapedLine = escapeHtml(line)
-          // 简单的语法高亮
-          const highlightedLine = highlightCode(escapedLine, ext)
-          return `<div class="line"><span class="line-number">${lineNum}</span><span class="line-content">${highlightedLine}</span></div>`
-        }).join('')
-
-        const moreInfo = totalLines > 50 ? `<div style="padding: 8px 12px; color: #858585; font-size: 11px; border-top: 1px solid #3c3c3c;">... 还有 ${totalLines - 50} 行</div>` : ''
-
-        return `<div class="code-preview">${codeHtml}</div>${moreInfo}`
-      } else if (data.error) {
-        return `<div style="text-align: center; padding: 20px; color: #858585;">📄 ${data.error}</div>`
+    } else {
+      const response = await searchApi.getFileContent(file.path)
+      if (response.success) {
+        const codeExts = ['js', 'ts', 'vue', 'py', 'java', 'go', 'rs', 'json', 'xml', 'html', 'css', 'scss']
+        
+        if (codeExts.includes(ext)) {
+          const lines = response.content.split('\n').slice(0, 50)
+          const numberedLines = lines.map((line: string, index: number) => 
+            `<div style="display:flex;"><span style="color:#666;user-select:none;width:40px;text-align:right;padding-right:16px;">${index + 1}</span><code>${escapeHtml(line)}</code></div>`
+          ).join('')
+          previewContent.value = `<pre style="font-size:13px;line-height:1.5;margin:0;padding:0;overflow-x:auto;">${numberedLines}</pre>`
+        } else {
+          previewContent.value = `<pre style="white-space:pre-wrap;font-size:13px;">${escapeHtml(response.content.substring(0, 5000))}</pre>`
+        }
       }
-      return '<div style="text-align: center; padding: 20px; color: #858585;">📄 无法读取文件内容</div>'
-    } catch (e) {
-      console.error('读取文件失败:', e)
-      return '<div style="text-align: center; padding: 20px; color: #858585;">📄 无法读取文件内容</div>'
     }
+  } catch (error) {
+    console.error('[FileSearch] Preview error:', error)
+    previewContent.value = '<div class="text-center py-8 text-grey">无法预览此文件</div>'
   }
-
-  // 其他文件显示基本信息
-  return `
-    <div style="padding: 20px; text-align: center;">
-      <div style="font-size: 48px; margin-bottom: 12px;">📎</div>
-      <div style="font-weight: 500; margin-bottom: 8px;">${escapeHtml(item.name)}</div>
-      <div style="font-size: 12px; color: #666; margin-bottom: 4px;">类型: ${ext.toUpperCase()}</div>
-      <div style="font-size: 12px; color: #666; margin-bottom: 4px;">大小: ${formatSize(item.size)}</div>
-      <div style="font-size: 12px; color: #666;">修改: ${formatDate(item.modified_time)}</div>
-    </div>
-  `
 }
 
 /**
@@ -1041,95 +804,362 @@ function escapeHtml(text: string): string {
 }
 
 /**
- * 简单的语法高亮
+ * 关闭预览
  */
-function highlightCode(line: string, ext: string): string {
-  // 根据文件类型应用不同的高亮规则
-  const keywords: Record<string, string[]> = {
-    'js': ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'import', 'export', 'from', 'class', 'async', 'await'],
-    'ts': ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'import', 'export', 'from', 'class', 'async', 'await', 'interface', 'type', 'extends', 'implements'],
-    'vue': ['const', 'let', 'var', 'function', 'return', 'if', 'else', 'for', 'while', 'import', 'export', 'from', 'class', 'async', 'await'],
-    'py': ['def', 'class', 'import', 'from', 'return', 'if', 'else', 'elif', 'for', 'while', 'try', 'except', 'with', 'as'],
-    'java': ['public', 'private', 'protected', 'class', 'interface', 'extends', 'implements', 'return', 'if', 'else', 'for', 'while'],
-    'cpp': ['int', 'float', 'double', 'char', 'void', 'class', 'struct', 'return', 'if', 'else', 'for', 'while'],
-    'go': ['func', 'package', 'import', 'return', 'if', 'else', 'for', 'range', 'struct', 'interface'],
-    'rs': ['fn', 'let', 'mut', 'return', 'if', 'else', 'for', 'while', 'match', 'struct', 'impl'],
-    'css': ['display', 'position', 'width', 'height', 'margin', 'padding', 'color', 'background', 'border'],
-    'json': ['true', 'false', 'null']
-  }
-
-  const langKeywords = keywords[ext] || keywords['js'] || []
-
-  // 转义 HTML 后应用高亮
-  let highlighted = line
-      // 注释
-      .replace(/(\/\/.*$|#.*$)/, '<span class="comment">$1</span>')
-      // 字符串
-      .replace(/("[^"]*"|'[^']*'|`[^`]*`)/g, '<span class="string">$1</span>')
-      // 数字
-      .replace(/\b(\d+)\b/g, '<span class="number">$1</span>')
-      // 关键字
-      .replace(new RegExp(`\\b(${langKeywords.join('|')})\\b`, 'g'), '<span class="keyword">$1</span>')
-      // HTML 标签
-      .replace(/(&lt;\/?[\w-]+)/g, '<span class="tag">$1</span>')
-      // HTML 属性
-      .replace(/\s([\w-]+)=/g, ' <span class="attr">$1</span>=')
-
-  return highlighted
+function closePreview(): void {
+  showPreview.value = false
+  previewedFile.value = null
+  previewContent.value = ''
 }
 
 /**
- * 加载内容索引统计
+ * 打开文件
  */
-async function loadContentStats() {
+async function openFile(file: FileItem): Promise<void> {
   try {
-    console.log('Loading content stats...')
-    const stats = await window.electronAPI.getContentIndexStats()
-    console.log('Content stats loaded:', stats)
-    contentStats.value = stats
+    const response = await searchApi.openFile(file.path)
+    if (response.success) {
+      showMessage(`已打开: ${file.name}`, 'success')
+
+      recentApi.recordAccess({
+        file_id: file.id,
+        path: file.path,
+        name: file.name,
+        access_type: 'open'
+      }).catch(console.error)
+    }
   } catch (error) {
-    console.error('Failed to load content stats:', error)
+    console.error('[FileSearch] Open error:', error)
+    showMessage('打开文件失败', 'error')
   }
 }
 
-const hasShownIndexComplete = sessionStorage.getItem('hasShownIndexComplete') === 'true'
-
-onMounted(() => {
-  window.electronAPI.onIndexProgress((data) => {
-    indexProgress.value = {
-      show: true,
-      progress: data.progress,
-      currentPath: data.currentPath
+/**
+ * 在资源管理器中打开
+ */
+async function openInExplorer(file: FileItem): Promise<void> {
+  try {
+    const response = await searchApi.openInSystem(file.path)
+    if (response.success) {
+      showMessage('已在资源管理器中打开', 'success')
     }
-  })
+  } catch (error) {
+    console.error('[FileSearch] Explorer error:', error)
+    showMessage('打开失败', 'error')
+  }
+}
 
-  window.electronAPI.onIndexComplete((data) => {
-    indexProgress.value.show = false
-    if (!hasShownIndexComplete) {
-      showSnackbar(`索引完成！共索引 ${data.totalFiles} 个文件`, 'success')
-      sessionStorage.setItem('hasShownIndexComplete', 'true')
+/**
+ * 添加到收藏夹
+ */
+async function addToFavorites(file: FileItem): Promise<void> {
+  try {
+    const isFav = await favoritesApi.isFavorited(file.path)
+    
+    if (isFav.data.isFavorited) {
+      showMessage('已存在于收藏夹', 'warning')
+      return
     }
-    loadContentStats()
+
+    await favoritesApi.addFavorite({
+      type: 'file',
+      name: file.name,
+      path: file.path
+    })
+
+    showMessage('已添加到收藏夹', 'success')
+  } catch (error) {
+    console.error('[FileSearch] Add favorite error:', error)
+    showMessage('添加收藏失败', 'error')
+  }
+}
+
+/**
+ * 复制路径
+ */
+function copyPath(file: FileItem): void {
+  navigator.clipboard.writeText(file.path).then(() => {
+    showMessage('路径已复制', 'success')
+  }).catch(() => {
+    showMessage('复制失败', 'error')
   })
+}
 
-  window.electronAPI.onError((data) => {
-    showSnackbar(`错误：${data.message}`, 'error')
-  })
+/**
+ * 确认删除
+ */
+function confirmDelete(file: FileItem): void {
+  deleteTarget.value = file
+  deleteDialogVisible.value = true
+}
 
-  loadContentStats()
+/**
+ * 执行删除操作
+ */
+async function confirmDeleteAction(): Promise<void> {
+  if (!deleteTarget.value) return
 
-  // 加载搜索历史
-  loadSearchHistory()
-  loadContentSearchHistory()
+  deleting.value = true
+  try {
+    const response = await searchApi.deleteFile(deleteTarget.value.id)
+    if (response.success) {
+      showMessage('已删除', 'success')
+      files.value = files.value.filter(f => f.id !== deleteTarget.value!.id)
+      totalFiles.value--
+    }
+    deleteDialogVisible.value = false
+    deleteTarget.value = null
+  } catch (error) {
+    console.error('[FileSearch] Delete error:', error)
+    showMessage('删除失败', 'error')
+  } finally {
+    deleting.value = false
+  }
+}
+
+// ==================== 索引状态检测 ====================
+
+/**
+ * 索引状态
+ */
+const indexStatus = ref<{
+  isIndexing: boolean
+  totalFiles: number
+  indexedFiles: number
+  currentPath: string
+  lastIndexed: string | null
+}>({
+  isIndexing: false,
+  totalFiles: 0,
+  indexedFiles: 0,
+  currentPath: '',
+  lastIndexed: null
+})
+
+/**
+ * 检查索引状态
+ */
+async function checkIndexStatus(): Promise<void> {
+  try {
+    // 获取文件总数
+    const counts = await searchApi.getFileCounts()
+    const totalFiles = counts.all || 0
+
+    // 获取索引进度
+    const progress = await searchApi.getIndexingProgress()
+
+    indexStatus.value = {
+      isIndexing: progress.isIndexing,
+      totalFiles: progress.totalFiles || totalFiles,
+      indexedFiles: progress.currentFile || 0,
+      currentPath: progress.currentPath || '',
+      lastIndexed: null
+    }
+
+    console.log('[FileSearch] Index status:', indexStatus.value)
+
+    // 如果没有索引过且当前没有正在索引,自动开始索引
+    if (totalFiles === 0 && !progress.isIndexing) {
+      console.log('[FileSearch] No files indexed, starting auto index...')
+      await startAutoIndex()
+    }
+  } catch (error) {
+    console.error('[FileSearch] Failed to check index status:', error)
+  }
+}
+
+/**
+ * 自动开始索引
+ */
+async function startAutoIndex(): Promise<void> {
+  try {
+    // 获取所有驱动器
+    const response = await fetch('http://localhost:3000/api/files/drives')
+    const data = await response.json()
+    const drives = data.success ? data.drives : ['C:', 'D:']
+
+    console.log('[FileSearch] Starting auto index for drives:', drives)
+
+    // 开始索引
+    await fetch('http://localhost:3000/api/files/index/start', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ drives })
+    })
+
+    // 开始轮询进度
+    startIndexProgressPolling()
+  } catch (error) {
+    console.error('[FileSearch] Failed to start auto index:', error)
+  }
+}
+
+/**
+ * 索引进度轮询
+ */
+let indexProgressInterval: ReturnType<typeof setInterval> | null = null
+
+function startIndexProgressPolling(): void {
+  if (indexProgressInterval) {
+    clearInterval(indexProgressInterval)
+  }
+
+  indexStatus.value.isIndexing = true
+
+  indexProgressInterval = setInterval(async () => {
+    try {
+      const progress = await searchApi.getIndexingProgress()
+
+      indexStatus.value = {
+        isIndexing: progress.isIndexing,
+        totalFiles: progress.totalFiles || 0,
+        indexedFiles: progress.currentFile || 0,
+        currentPath: progress.currentPath || '',
+        lastIndexed: null
+      }
+
+      // 如果索引完成
+      if (!progress.isIndexing) {
+        stopIndexProgressPolling()
+        showMessage(`索引完成!共索引 ${progress.totalFiles} 个文件`, 'success')
+        // 刷新文件计数
+        await checkIndexStatus()
+      }
+    } catch (error) {
+      console.error('[FileSearch] Index progress polling error:', error)
+    }
+  }, 1000)
+}
+
+function stopIndexProgressPolling(): void {
+  if (indexProgressInterval) {
+    clearInterval(indexProgressInterval)
+    indexProgressInterval = null
+  }
+  indexStatus.value.isIndexing = false
+}
+
+// ==================== 生命周期 ====================
+
+onMounted(async () => {
+  await loadSearchHistory()
+  await checkIndexStatus()
 })
 
 onUnmounted(() => {
-  if (searchTimeout) {
-    clearTimeout(searchTimeout)
-  }
+  stopIndexProgressPolling()
 })
 </script>
 
 <style lang="scss" scoped>
-@import './index.scss';
+.file-search-page {
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.main-layout {
+  display: flex;
+  height: 100%;
+  gap: 0;
+}
+
+.sidebar-section {
+  flex-shrink: 0;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+  @media (max-width: 959px) and (min-width: 600px) {
+    position: fixed;
+    top: 64px;
+    left: 0;
+    right: 0;
+    z-index: 100;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  }
+
+  @media (max-width: 599px) {
+    display: none;
+  }
+}
+
+.content-section {
+  flex: 1;
+  min-width: 0;
+  overflow-y: auto;
+  padding: 0 24px;
+
+  .search-type-card {
+    border-radius: 8px;
+  }
+
+  .search-area {
+    margin-top: 16px;
+  }
+
+  .filter-row {
+    align-items: center;
+  }
+
+  .history-bar {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+
+    .history-label {
+      font-size: 13px;
+      font-weight: 500;
+      color: rgba(var(--v-theme-on-surface), 0.6);
+      margin-right: 4px;
+    }
+  }
+
+  .result-stats {
+    border-radius: 8px;
+
+    .stats-text {
+      font-size: 14px;
+      font-weight: 500;
+    }
+  }
+
+  .results-table {
+    border-radius: 8px;
+
+    .file-name-cell {
+      .file-name {
+        font-weight: 500;
+        cursor: pointer;
+        
+        &:hover {
+          color: rgb(var(--v-theme-primary));
+        }
+      }
+    }
+  }
+}
+
+.preview-section {
+  flex-shrink: 0;
+  width: 350px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
+
+  @media (max-width: 1279px) {
+    position: fixed;
+    right: 0;
+    top: 64px;
+    bottom: 0;
+    width: 350px;
+    z-index: 99;
+    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.15);
+  }
+
+  @media (max-width: 959px) {
+    display: none;
+  }
+}
 </style>

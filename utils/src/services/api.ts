@@ -1,10 +1,7 @@
+import {isElectron} from '@/utils/env'
+
 // API 服务配置
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000'
-
-// 检查是否在 Electron 环境
-function isElectron(): boolean {
-  return !!(window as any).electronAPI
-}
 
 // 通用请求封装
 async function request<T>(

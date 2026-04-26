@@ -1,0 +1,70 @@
+.countdown-container
+  padding: 16px
+
+.countdown-card
+  background: transparent
+
+.add-countdown-section
+  .section-title
+    font-weight: 600
+    color: rgb(var(--v-theme-primary))
+
+.countdown-list
+  .section-title
+    font-weight: 600
+    color: rgb(var(--v-theme-primary))
+
+.countdown-item
+  height: 100%
+  display: flex
+  flex-direction: column
+  transition: all 0.3s ease
+  user-select: none
+
+  &:hover
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15)
+
+  &.is-expired
+    opacity: 0.7
+
+  .countdown-title
+    word-break: break-word
+    line-height: 1.4
+
+  .countdown-actions
+    display: flex
+    align-items: center
+    gap: 4px
+
+    .action-btn
+      min-width: 32px
+      opacity: 0
+      transform: translateX(10px)
+      transition: all 0.2s ease
+
+    .menu-btn
+      opacity: 1
+      transition: all 0.2s ease
+
+    &:hover
+      .action-btn
+        opacity: 1
+        transform: translateX(0)
+
+      .menu-btn
+        opacity: 0
+        transform: translateX(10px)
+
+  .countdown-display
+    flex: 1
+    display: flex
+    align-items: center
+    justify-content: center
+
+    .remaining-text
+      &.is-negative
+        color: rgb(var(--v-theme-error))
+
+  .countdown-info
+    border-top: 1px solid rgba(var(--v-border-color), 0.12)
+    padding-top: 8px

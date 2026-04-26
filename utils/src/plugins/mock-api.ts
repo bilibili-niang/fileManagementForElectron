@@ -40,41 +40,33 @@ export function setupMockApi() {
   const isElectron = !!(window as any).electronAPI
 
   if (isElectron) {
-    console.log('Running in Electron environment')
     return
   }
-
-  console.log('Setting up mock Electron API...')
 
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
   let globalPollingActive = false
 
   ;(window as any).electronAPI = {
-    windowMinimize: async () => { console.log('Mock: windowMinimize') },
-    windowMaximize: async () => { console.log('Mock: windowMaximize') },
-    windowClose: async () => { console.log('Mock: windowClose') },
+    windowMinimize: async () => { },
+    windowMaximize: async () => { },
+    windowClose: async () => { },
     windowIsMaximized: async () => false,
 
     onIndexProgress: (_callback: any) => {
-      console.log('API: onIndexProgress registered')
     },
 
     onIndexComplete: (_callback: any) => {
-      console.log('API: onIndexComplete registered')
     },
 
     onError: (_callback: any) => {
-      console.log('API: onError registered')
     },
 
     startIndex: async (drives: string[]) => {
-      console.log('API: startIndex called with drives:', drives)
       globalPollingActive = true
       return { success: true }
     },
 
     stopIndex: async () => {
-      console.log('API: stopIndex called')
       globalPollingActive = false
       return { success: true }
     },
@@ -90,67 +82,62 @@ export function setupMockApi() {
       }
     },
 
-    searchFiles: async (query: string, _page: number, _pageSize: number, options?: any) => {
-      console.log('API: searchFiles called with query:', query, 'options:', options)
+    searchFiles: async (query: string, _page: number, _pageSize: number, _options?: any) => {
       return { files: [], total: 0 }
     },
 
     searchFileContent: async (keyword: string, _page: number, _pageSize: number) => {
-      console.log('API: searchFileContent called with keyword:', keyword)
       return { files: [], total: 0 }
     },
 
     getFilesByCategory: async (category: string, _page: number, _pageSize: number) => {
-      console.log('API: getFilesByCategory called with category:', category)
       return { files: [], total: 0 }
     },
 
     getContentIndexStats: async () => {
-      console.log('API: getContentIndexStats called')
       return { totalFiles: 0, indexedFiles: 0, lastIndexed: null }
     },
 
     getFileCounts: async () => {
-      console.log('API: getFileCounts called')
       return mockFileCounts
     },
 
     loadConfig: async () => {
-      console.log('API: loadConfig called')
       return mockConfig
     },
 
-    saveConfig: async (_config: any) => {
-      console.log('API: saveConfig called with config:', _config)
-      Object.assign(mockConfig, _config)
+    saveConfig: async (config: any) => {
+      Object.assign(mockConfig, config)
       return { success: true }
     },
 
     testDatabaseConnection: async (_config: any) => {
-      console.log('API: testDatabaseConnection called')
       return { success: false, message: 'H5环境不支持数据库连接测试' }
     },
 
-    openFile: async (filePath: string) => {
-      console.log('API: openFile called with path:', filePath)
+    openFile: async (_filePath: string) => {
       return { success: false, message: 'H5环境不支持打开文件' }
     },
 
-    parseDocx: async (filePath: string) => {
-      console.log('API: parseDocx called with path:', filePath)
+    parseDocx: async (_filePath: string) => {
       return { success: false, message: 'H5环境不支持解析DOCX' }
     },
 
     saveFile: async (filePath: string, _content: string) => {
-      console.log('API: saveFile called with path:', filePath)
       return { success: false, message: 'H5环境不支持保存文件' }
     },
 
-    showItemInFolder: async (filePath: string) => {
-      console.log('API: showItemInFolder called with path:', filePath)
+    showItemInFolder: async (_filePath: string) => {
       return { success: false, message: 'H5 environment does not support this feature' }
+    },
+
+    // Port management
+    scanPorts: async (_ports: number[]) => {
+      return { success: false, ports: [], message: 'H5环境不支持端口扫描' }
+    },
+
+    killProcess: async (_pid: number) => {
+      return { success: false, message: 'H5环境不支持结束进程' }
     }
   }
-
-  console.log('Mock Electron API setup complete')
 }

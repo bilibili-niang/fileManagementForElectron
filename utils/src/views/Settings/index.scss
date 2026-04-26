@@ -2,9 +2,8 @@
  * Settings 页面样式
  */
 .settings-container {
-  padding: 16px;
-  height: 100vh;
-  overflow: auto;
+  padding: 0;
+  min-height: 100%;
 }
 
 .settings-card {

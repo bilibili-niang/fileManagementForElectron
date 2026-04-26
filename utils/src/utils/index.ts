@@ -12,7 +12,8 @@ export {
   getFileExtension,
   getFileCategory,
   isFileCategory,
-  getCategoryDisplayName
+  getCategoryDisplayName,
+  formatFileSize
 } from './file'
 
 export {
@@ -20,3 +21,7 @@ export {
   highlightCode,
   copyToClipboard
 } from './dom'
+
+export {
+  isElectron
+} from './env'

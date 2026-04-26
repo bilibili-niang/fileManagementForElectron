@@ -28,7 +28,7 @@
             <v-btn
               variant="text"
               density="compact"
-              size="x-small"
+              size="small"
               color="error"
               @click="$emit('clear')"
             >
@@ -49,7 +49,7 @@
               icon="mdi-close"
               variant="text"
               density="compact"
-              size="x-small"
+              size="small"
               class="ml-1"
               @click.stop="$emit('delete', item.id)"
             ></v-btn>

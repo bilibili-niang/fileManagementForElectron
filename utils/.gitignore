@@ -55,3 +55,9 @@ check-asar/
 # Cache
 .cache/
 *.tsbuildinfo
+
+# Database
+*.db
+
+# File share upload directory
+server/share/

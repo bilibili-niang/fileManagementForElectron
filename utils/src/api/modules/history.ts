@@ -14,7 +14,7 @@ export const historyApi = {
     return request(
       {
         path: '/api/config/search-history',
-        params: { limit, type }
+        params: { type, limit }
       },
       { channel: 'getSearchHistory', args: [limit, type] }
     )

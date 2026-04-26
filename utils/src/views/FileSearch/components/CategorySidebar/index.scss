@@ -1,0 +1,89 @@
+.category-sidebar {
+  width: 200px;
+  height: 100%;
+  background-color: rgb(var(--v-theme-surface));
+  border-right: 1px solid rgba(var(--v-theme-surface-variant), 0.12);
+  padding: 8px 0;
+  overflow-y: auto;
+
+  &::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    background-color: rgba(var(--v-theme-on-surface), 0.15);
+    border-radius: 2px;
+  }
+
+  .category-item {
+    margin: 2px 8px;
+    border-radius: 8px;
+    min-height: 40px;
+
+    .category-label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .category-count {
+      font-size: 11px;
+      font-weight: 600;
+      height: 20px;
+      min-width: 28px;
+      justify-content: center;
+    }
+
+    &--extra {
+      .category-label {
+        color: rgba(var(--v-theme-on-surface), 0.8);
+      }
+    }
+  }
+
+  .v-list-item--active {
+    .category-label {
+      font-weight: 600;
+    }
+  }
+}
+
+/* 响应式适配 - 平板端收起为顶部 Tab 栏 */
+@media (max-width: 959px) and (min-width: 600px) {
+  .category-sidebar {
+    width: 100%;
+    height: auto;
+    flex-direction: row;
+    border-right: none;
+    border-bottom: 1px solid rgba(var(--v-theme-surface-variant), 0.12);
+    padding: 8px 12px;
+    display: flex;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+
+    .category-item {
+      flex-shrink: 0;
+      margin: 0;
+      border-radius: 20px;
+      padding: 0 12px;
+
+      .category-label {
+        max-width: 80px;
+      }
+
+      .category-count {
+        margin-left: 4px;
+      }
+    }
+
+    .v-divider {
+      display: none;
+    }
+  }
+}
+
+@media (max-width: 599px) {
+  .category-sidebar {
+    display: none;
+  }
+}

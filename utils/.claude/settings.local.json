@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)",
+      "Bash(pnpm add:*)",
+      "Bash(npm add:*)",
+      "Bash(npm config:*)",
+      "WebFetch(domain:minimax-algeng-chat-tts.oss-cn-wulanchabu.aliyuncs.com)",
+      "Bash(curl -s http://localhost:3000/api/config/calculator-history)",
+      "Bash(ls E:/superUtils/*.ts E:/superUtils/electron/*.ts)",
+      "Bash(curl -s http://localhost:3000/api/config)",
+      "Bash(curl:*)",
+      "Bash(netstat -ano)",
+      "Bash(findstr :3000)",
+      "Bash(taskkill /PID 130272 /F)",
+      "Bash(cmd //c \"taskkill /PID 130272 /F\")",
+      "Bash(ls:*)",
+      "Bash(cd:*)",
+      "Bash(findstr :9000)",
+      "Bash(taskkill:*)",
+      "Bash(cmd //c \"taskkill /PID 66324 /F\")",
+      "Bash(python3 -c \"import sys,json; data=json.load\\(sys.stdin\\); print\\(json.dumps\\(data, indent=2\\)\\)\")",
+      "Bash(mysql -u root -proot superUtils -e \"SELECT id, title, date, time, repeat FROM countdowns WHERE id = 1\\\\G\")",
+      "Bash(npm install:*)",
+      "Bash(npm run:*)",
+      "Bash(git rm:*)"
+    ]
+  }
+}

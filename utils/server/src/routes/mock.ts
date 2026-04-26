@@ -22,7 +22,7 @@ async function loadMockRoutesToCache(): Promise<void> {
       mockRoutesCache.set(key, route.response);
     }
   } catch (error) {
-    console.error('加载模拟路由到缓存失败:', error);
+    console.error('Failed to load mock routes to cache:', error);
   }
 }
 
@@ -34,11 +34,9 @@ router.get('/routes', async (req, res) => {
     const routes = await dbService.getMockRoutes();
     res.json({ success: true, routes });
   } catch (error: any) {
-    console.error('Get mock routes error:', error);
     res.status(500).json({
       success: false,
-      error: error.message || 'Failed to get routes',
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      error: error.message || 'Failed to get routes'
     });
   }
 });
@@ -99,6 +97,39 @@ router.delete('/routes', async (req, res) => {
     res.status(500).json({
       success: false,
       error: error.message || 'Failed to delete route'
+    });
+  }
+});
+
+/**
+ * 更新模拟路由
+ */
+router.put('/routes', async (req, res) => {
+  try {
+    const { oldMethod, oldPath, method, path, response } = req.body;
+
+    if (!oldMethod || !oldPath || !method || !path) {
+      return res.status(400).json({
+        success: false,
+        message: '缺少必要参数'
+      });
+    }
+
+    // 从数据库更新
+    await dbService.updateMockRoute(oldMethod, oldPath, method, path, response);
+
+    // 更新缓存：删除旧key，添加新key
+    const oldKey = `${oldMethod.toUpperCase()}:${oldPath}`;
+    const newKey = `${method.toUpperCase()}:${path}`;
+
+    mockRoutesCache.delete(oldKey);
+    mockRoutesCache.set(newKey, response);
+
+    res.json({ success: true, message: 'Route updated successfully' });
+  } catch (error: any) {
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Failed to update route'
     });
   }
 });

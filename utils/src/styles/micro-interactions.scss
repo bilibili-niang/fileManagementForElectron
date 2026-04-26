@@ -1,0 +1,609 @@
+// ==================== SuperUtils 微交互系统 ====================
+// 版本: 1.0.0
+// 日期: 2026-04-11
+// 用途: 提供统一的组件微交互效果(按钮、列表、输入框等)
+
+@use 'design-tokens' as *;
+
+// ==================== 按钮交互(Button Interactions) ====================
+
+/**
+ * 标准按钮增强效果
+ */
+.v-btn {
+  transition: all $duration-fast $ease-default;
+  
+  // 点击反馈
+  &:active {
+    transform: scale(0.97);
+  }
+  
+  // 禁用状态
+  &.v-btn--disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+  
+  // 图标按钮
+  &.v-btn--icon {
+    transition: all $duration-fast $ease-default;
+    
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.08);
+    }
+    
+    &:active {
+      transform: scale(0.92);
+    }
+  }
+}
+
+/**
+ * 主要操作按钮
+ * 更明显的视觉反馈
+ */
+.btn-primary {
+  @extend .v-btn;
+  
+  &:hover {
+    box-shadow: 0 4px 12px rgba($color-primary-rgb, 0.3);
+    transform: translateY(-1px);
+  }
+  
+  &:active {
+    transform: translateY(0) scale(0.98);
+    box-shadow: 0 2px 4px rgba($color-primary-rgb, 0.2);
+  }
+}
+
+/**
+ * 危险/删除按钮
+ */
+.btn-danger {
+  &:hover {
+    background-color: lighten($color-error, 5%) !important;
+    box-shadow: 0 4px 12px rgba($color-error, 0.3);
+  }
+}
+
+// ==================== 列表项交互(List Item Interactions) ====================
+
+/**
+ * 可点击列表项
+ */
+.v-list-item,
+.list-item,
+.file-name-wrapper,
+.history-item,
+.category-item {
+  transition: background-color $duration-fast $ease-default,
+              transform $duration-fast $ease-default;
+  
+  &:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+  }
+  
+  &:active {
+    transform: scale(0.995);
+    background-color: rgba(255, 255, 255, 0.03);
+  }
+  
+  // 选中状态
+  &.selected,
+  &[aria-selected="true"] {
+    background-color: rgba($color-primary-rgb, 0.12);
+    
+    &::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 3px;
+      height: 60%;
+      background: $color-primary;
+      border-radius: 0 2px 2px 0;
+    }
+  }
+}
+
+/**
+ * 可拖拽列表项
+ */
+.draggable-item {
+  cursor: grab;
+  position: relative;
+  
+  &:active {
+    cursor: grabbing;
+  }
+  
+  &.dragging {
+    opacity: 0.8;
+    box-shadow: $shadow-lg;
+    z-index: $z-index-dropdown + 1;
+    transform: rotate(1deg) scale(1.02);
+  }
+  
+  &.drag-over {
+    border-top: 2px solid $color-primary;
+  }
+}
+
+// ==================== 卡片交互(Card Interactions) ====================
+
+/**
+ * 标准卡片悬浮效果
+ */
+.v-card {
+  transition: box-shadow $duration-normal $ease-default,
+              transform $duration-normal $ease-default;
+  
+  &:hover {
+    box-shadow: $shadow-lg;
+    transform: translateY(-2px);
+  }
+  
+  // 可点击卡片
+  &.clickable {
+    cursor: pointer;
+    
+    &:hover {
+      border-color: rgba($color-primary-rgb, 0.3);
+    }
+    
+    &:active {
+      transform: translateY(0) scale(0.99);
+    }
+  }
+}
+
+/**
+ * 统计卡片悬浮增强
+ */
+.stat-card:hover {
+  .stat-icon {
+    animation: pulse-icon 0.6s ease-out;
+  }
+}
+
+@keyframes pulse-icon {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+// ==================== 输入框交互(Input Interactions) ====================
+
+/**
+ * 文本输入框聚焦效果
+ */
+.v-text-field,
+.v-textarea,
+.v-select {
+  .v-field {
+    transition: border-color $duration-fast $ease-default,
+                box-shadow $duration-fast $ease-default,
+                background-color $duration-fast $ease-default;
+    
+    &--focused {
+      box-shadow: 0 0 0 3px rgba($color-primary-rgb, 0.15);
+      border-color: $color-primary;
+      
+      // 聚焦时背景变亮
+      .v-field__input {
+        background-color: transparent;
+      }
+    }
+    
+    &:hover:not(.v-field--focused) {
+      background-color: rgba(255, 255, 255, 0.02);
+      border-color: rgba(255, 255, 255, 0.18);
+    }
+  }
+  
+  // 输入时的微动画
+  .v-field__input {
+    transition: color $duration-fast $ease-default;
+  }
+}
+
+/**
+ * 复选框和单选框
+ */
+.v-checkbox,
+.v-radio {
+  .v-selection-control {
+    transition: background-color $duration-fast $ease-default;
+    
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.04);
+      border-radius: $radius-sm;
+    }
+  }
+  
+  .v-selection-control__input:hover {
+    transform: scale(1.15);
+  }
+}
+
+/**
+ * 开关(Switch)
+ */
+.v-switch {
+  .v-switch__track {
+    transition: all $duration-normal $ease-default;
+  }
+  
+  .v-switch__thumb {
+    transition: all $duration-normal $ease-spring;
+  }
+  
+  // 点击时的弹跳效果
+  &:active .v-switch__thumb {
+    width: 24px; // 稍微变大
+  }
+}
+
+/**
+ * 滑块(Slider)
+ */
+.v-slider {
+  .v-slider__thumb {
+    transition: transform $duration-fast $ease-default,
+                box-shadow $duration-fast $ease-default;
+    
+    &:hover {
+      transform: scale(1.15);
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    }
+  }
+  
+  .v-slider__track-background,
+  .v-slider__track-fill {
+    transition: all $duration-normal $ease-default;
+  }
+}
+
+// ==================== 表格交互(Table Interactions) ====================
+
+/**
+ * 数据表格行交互
+ */
+.v-data-table {
+  tbody tr {
+    transition: background-color $duration-fast $ease-default;
+    
+    &:hover {
+      background-color: $table-row-hover-bg !important;
+    }
+    
+    // 点击行
+    &.clickable {
+      cursor: pointer;
+      
+      &:active {
+        background-color: rgba(255, 255, 255, 0.03);
+      }
+    }
+  }
+  
+  thead th {
+    transition: background-color $duration-fast $ease-default,
+                color $duration-fast $ease-default;
+    
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.06);
+      color: $text-color-primary;
+    }
+  }
+}
+
+// ==================== 对话框/模态框(Dialog/Modal Interactions) ====================
+
+/**
+ * 对话框进入动画
+ */
+.v-dialog {
+  .v-overlay__content {
+    animation: dialog-enter $duration-enter $ease-out;
+  }
+  
+  &.v-dialog--active {
+    .v-overlay__content {
+      animation: dialog-exit $duration-exit $ease-in forwards;
+    }
+  }
+}
+
+@keyframes dialog-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes dialog-exit {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.95) translateY(-10px);
+  }
+}
+
+/**
+ * 对话框背景遮罩
+ */
+.v-dialog .v-overlay__scrim {
+  animation: overlay-fade-in $duration-normal $ease-default;
+}
+
+@keyframes overlay-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+// ==================== Snackbar/Toast通知 ====================
+
+/**
+ * 轻提示进入动画
+ */
+.v-snackbar {
+  .v-snackbar__wrapper {
+    animation: snackbar-slide-down $duration-slow $ease-bounce;
+  }
+}
+
+@keyframes snackbar-slide-down {
+  0% {
+    opacity: 0;
+    transform: translateY(-100%) scale(0.95);
+  }
+  60% {
+    transform: translateY(10px) scale(1.01);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/**
+ * 成功/错误提示的颜色变化
+ */
+.snackbar-success {
+  .v-snackbar__wrapper {
+    background: linear-gradient(135deg, $color-success 0%, darken($color-success, 10%) 100%) !important;
+    color: white !important;
+  }
+}
+
+.snackbar-error {
+  .v-snackbar__wrapper {
+    background: linear-gradient(135deg, $color-error 0%, darken($color-error, 10%) 100%) !important;
+    color: white !important;
+  }
+}
+
+.snackbar-warning {
+  .v-snackbar__wrapper {
+    background: linear-gradient(135deg, $color-warning 0%, darken($color-warning, 10%) 100%) !important;
+    color: white !important;
+  }
+}
+
+// ==================== 标签页(Tab)交互 ====================
+
+/**
+ * 标签页切换动画
+ */
+.v-tabs {
+  .v-tab {
+    transition: color $duration-fast $ease-default,
+                background-color $duration-fast $ease-default;
+    
+    &:hover {
+      background-color: rgba(255, 255, 255, 0.04);
+    }
+    
+    &--selected {
+      font-weight: $font-weight-semibold;
+    }
+  }
+  
+  // 指示器滑动
+  .v-tab__slider {
+    transition: all $duration-slow $ease-spring;
+  }
+}
+
+// ==================== 图标交互(Icon Interactions) ====================
+
+/**
+ * 图标按钮悬浮旋转(适用于刷新等图标)
+ */
+.icon-rotate-hover {
+  transition: transform $duration-normal $ease-default;
+  
+  &:hover {
+    transform: rotate(180deg);
+  }
+}
+
+/**
+ * 图标点击缩放
+ */
+.icon-scale-click {
+  transition: transform $duration-fast $ease-default;
+  
+  &:active {
+    transform: scale(0.85);
+  }
+}
+
+/**
+ * 加载中图标旋转
+ */
+.icon-spinning {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/**
+ * 心形/收藏图标跳动
+ */
+.icon-heartbeat {
+  animation: heartbeat 1.2s ease-in-out infinite;
+}
+
+@keyframes heartbeat {
+  0%, 100% { transform: scale(1); }
+  25% { transform: scale(1.2); }
+  50% { transform: scale(1); }
+  75% { transform: scale(1.15); }
+}
+
+// ==================== 工具提示(Tooltip) ====================
+
+/**
+ * 工具提示延迟显示
+ */
+.v-tooltip {
+  .v-overlay__content {
+    transition: opacity $duration-fast $ease-default,
+                transform $duration-fast $ease-default;
+    
+    // 进入
+    &.enter-active {
+      opacity: 1;
+      transform: translateY(0);
+    }
+    
+    // 退出
+    &.leave-active {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+  }
+}
+
+// ==================== 进度条(Progress) ====================
+
+/**
+ * 进度条动画
+ */
+.v-progress-linear {
+  .v-progress-linear__indeterminate {
+    animation: progress-indeterminate 2s infinite linear;
+  }
+  
+  .v-progress-linear__determinate {
+    transition: width $duration-slow $ease-default;
+  }
+}
+
+@keyframes progress-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(400%); }
+}
+
+/**
+ * 圆形进度条
+ */
+.v-progress-circular {
+  .v-progress-circular-indeterminate {
+    animation: circular-rotate 2s linear infinite;
+  }
+}
+
+@keyframes circular-rotate {
+  100% { transform: rotate(360deg); }
+}
+
+// ==================== 展开收起(Accordion/Collapse) ====================
+
+/**
+ * 展开/收起箭头旋转
+ */
+.expand-icon {
+  transition: transform $duration-normal $ease-default;
+  
+  &.expanded {
+    transform: rotate(180deg);
+  }
+}
+
+// ==================== 链接交互(Link Interactions) ====================
+
+/**
+ * 文本链接
+ */
+.text-link {
+  color: $color-primary-light;
+  text-decoration: none;
+  transition: color $duration-fast $ease-default,
+              text-decoration $duration-fast $ease-default;
+  
+  &:hover {
+    color: lighten($color-primary-light, 10%);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+  
+  &:active {
+    color: darken($color-primary-light, 10%);
+  }
+}
+
+// ==================== 图片交互(Image Interactions) ====================
+
+/**
+ * 图片查看器缩放
+ */
+.image-viewer {
+  transition: transform $duration-normal $ease-default;
+  cursor: zoom-in;
+  
+  &:hover {
+    transform: scale(1.02);
+  }
+  
+  &.zoomed {
+    cursor: zoom-out;
+    transform: scale(1.5);
+  }
+}
+
+// ==================== 无障碍与减少动画偏好(Accessibility) ====================
+
+/**
+ * 尊重用户的"减少动画"偏好设置
+ * 对于前庭功能障碍的用户,禁用或简化动画
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  
+  // 保留必要的功能性过渡(如焦点环)
+  .v-field--focused {
+    box-shadow: 0 0 0 2px $color-primary !important;
+  }
+}

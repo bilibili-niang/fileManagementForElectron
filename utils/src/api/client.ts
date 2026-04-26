@@ -15,17 +15,61 @@ const isDev = (import.meta as any).env?.DEV
  */
 const API_BASE_URL = isDev ? '' : ((import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000')
 
+import { isElectron } from '../utils/env'
+
 /**
- * 检查是否在 Electron 环境
+ * 需要跳过日志记录的接口路径
  */
-function isElectron(): boolean {
-  return !!(window as any).electronAPI
+const SKIP_LOG_PATHS = ['/api/dev-error-log', '/api/dev-error-logs']
+
+/**
+ * 响应体最大存储大小 (10KB)
+ */
+const MAX_BODY_SIZE = 10240
+
+/**
+ * 开发环境错误日志上报 (fire-and-forget, 不阻塞主流程)
+ */
+async function recordDevError(
+  url: string,
+  method: string,
+  requestBody: any,
+  response: Response
+): Promise<void> {
+  try {
+    let responseBody: string
+    try {
+      const json = await response.clone().json()
+      responseBody = JSON.stringify(json)
+    } catch {
+      responseBody = await response.clone().text()
+    }
+
+    if (responseBody.length > MAX_BODY_SIZE) {
+      responseBody = responseBody.substring(0, MAX_BODY_SIZE) + '[...TRUNCATED]'
+    }
+
+    fetch(`${API_BASE_URL}/api/dev-error-log`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        url,
+        method,
+        request_body: requestBody ? String(requestBody) : null,
+        response_status: response.status,
+        response_body: responseBody,
+        error_message: `HTTP ${response.status}: ${response.statusText}`
+      })
+    }).catch(() => {})
+  } catch {
+    /** 静默处理, 不影响主流程 */
+  }
 }
 
 /**
  * HTTP 请求封装
  */
-async function httpRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
+export async function httpRequest<T>(path: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE_URL}${path}`
   const response = await fetch(url, {
     headers: {
@@ -36,6 +80,10 @@ async function httpRequest<T>(path: string, options: RequestInit = {}): Promise<
   })
 
   if (!response.ok) {
+    /** 开发环境: 异步上报错误日志 (排除自身接口防止循环) */
+    if (isDev && !SKIP_LOG_PATHS.some(p => path.includes(p))) {
+      recordDevError(url, options.method || 'GET', options.body, response).catch(() => {})
+    }
     throw new Error(`HTTP ${response.status}: ${response.statusText}`)
   }
 
@@ -79,7 +127,6 @@ export async function request<T>(
   httpConfig: RequestConfig,
   electronConfig?: ElectronConfig
 ): Promise<T> {
-  // 构建 URL
   let url = httpConfig.path
   if (httpConfig.params) {
     const params = new URLSearchParams()
@@ -94,12 +141,10 @@ export async function request<T>(
     }
   }
 
-  // Electron 环境优先使用 IPC
   if (isElectron() && electronConfig) {
     return electronInvoke(electronConfig.channel, ...(electronConfig.args || []))
   }
 
-  // HTTP 请求
   return httpRequest(url, {
     method: httpConfig.method || 'GET',
     body: httpConfig.body ? JSON.stringify(httpConfig.body) : undefined

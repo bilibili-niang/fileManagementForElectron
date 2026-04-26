@@ -4,6 +4,8 @@ import FileSearch from '@/views/FileSearch/index.vue'
 import Settings from '@/views/Settings/index.vue'
 import QrCodeGenerator from '@/views/QrCodeGenerator/index.vue'
 import NetworkMock from '@/views/NetworkMock/index.vue'
+import ApiDocs from '@/views/ApiDocs/index.vue'
+import FileShare from '@/views/FileShare/index.vue'
 
 const routes = [
   { path: '/', redirect: '/qrcode' },
@@ -24,6 +26,18 @@ const routes = [
     name: 'QrCode',
     component: QrCodeGenerator,
     meta: { title: '二维码生成', icon: 'mdi-qrcode' }
+  },
+  {
+    path: '/fileShare',
+    name: 'FileShare',
+    component: FileShare,
+    meta: { title: '文件共享', icon: 'mdi-folder-sync' }
+  },
+  {
+    path: '/api-docs',
+    name: 'ApiDocs',
+    component: ApiDocs,
+    meta: { title: 'API 文档', icon: 'mdi-api' }
   },
   {
     path: '/network-mock',

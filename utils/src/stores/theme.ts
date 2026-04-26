@@ -1,5 +1,6 @@
 import {defineStore} from 'pinia'
 import {ref, computed} from 'vue'
+import {isElectron} from '@/utils/env'
 
 /**
  * 主题类型
@@ -13,6 +14,23 @@ export interface ThemeConfig {
   theme: ThemeType
 }
 
+const DEFAULT_THEME: ThemeType = 'light'
+
+/**
+ * 同步从 localStorage 获取初始主题
+ */
+const getInitialTheme = (): ThemeType => {
+  try {
+    const saved = localStorage.getItem('app-theme')
+    console.log('[ThemeStore] getInitialTheme - localStorage app-theme:', saved)
+    const result = (saved as ThemeType) || DEFAULT_THEME
+    console.log('[ThemeStore] getInitialTheme - result:', result)
+    return result
+  } catch {
+    return DEFAULT_THEME
+  }
+}
+
 /**
  * 主题 Store
  * 管理应用的主题状态,支持浅色、深色和自动模式
@@ -21,7 +39,7 @@ export const useThemeStore = defineStore('theme', () => {
   /**
    * 当前主题
    */
-  const currentTheme = ref<ThemeType>('light')
+  const currentTheme = ref<ThemeType>(getInitialTheme())
 
   /**
    * 是否为深色模式
@@ -69,19 +87,26 @@ export const useThemeStore = defineStore('theme', () => {
    * 加载主题配置
    */
   async function loadTheme() {
+    console.log('[ThemeStore] loadTheme - start')
     try {
-      const isElectron = !!(window as any).electronAPI?.loadConfig
-      if (isElectron) {
+      const electronEnv = isElectron()
+      console.log('[ThemeStore] loadTheme - isElectron:', electronEnv)
+      if (electronEnv) {
         const config = await window.electronAPI.loadConfig()
-        currentTheme.value = config.theme || 'light'
+        console.log('[ThemeStore] loadTheme - electron config:', config)
+        if (config?.theme) {
+          currentTheme.value = config.theme
+        }
       } else {
         const saved = localStorage.getItem('app-theme')
+        console.log('[ThemeStore] loadTheme - localStorage saved:', saved)
         if (saved) {
           currentTheme.value = saved as ThemeType
         }
       }
+      console.log('[ThemeStore] loadTheme - currentTheme after load:', currentTheme.value)
     } catch (error) {
-      console.error('Failed to load theme:', error)
+      console.error('[ThemeStore] Failed to load theme:', error)
       const saved = localStorage.getItem('app-theme')
       if (saved) {
         currentTheme.value = saved as ThemeType
@@ -95,28 +120,26 @@ export const useThemeStore = defineStore('theme', () => {
   async function setTheme(theme: ThemeType) {
     currentTheme.value = theme
     try {
-      const isElectron = !!(window as any).electronAPI?.loadConfig
-      if (isElectron) {
+      const electronEnv = isElectron()
+      if (electronEnv) {
         const config = await window.electronAPI.loadConfig()
         config.theme = theme
         await window.electronAPI.saveConfig(config)
       }
       localStorage.setItem('app-theme', theme)
     } catch (error) {
-      console.error('Failed to save theme:', error)
+      console.error('[ThemeStore] Failed to save theme:', error)
       localStorage.setItem('app-theme', theme)
     }
   }
 
   /**
    * 切换主题
-   * 循环切换: light -> dark -> auto -> light
+   * 循环切换: light -> dark -> light
    */
   async function toggleTheme() {
-    const themes: ThemeType[] = ['light', 'dark', 'auto']
-    const currentIndex = themes.indexOf(currentTheme.value)
-    const nextIndex = (currentIndex + 1) % themes.length
-    await setTheme(themes[nextIndex])
+    const nextTheme = currentTheme.value === 'light' ? 'dark' : 'light'
+    await setTheme(nextTheme)
   }
 
   return {

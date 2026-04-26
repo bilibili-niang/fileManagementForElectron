@@ -1,0 +1,264 @@
+// ==================== SuperUtils 过渡动画系统 ====================
+// 版本: 1.0.0
+// 日期: 2026-04-11
+// 用途: 提供统一的页面切换和组件过渡动画
+
+@use 'design-tokens' as *;
+
+// ==================== Vue Transition 组件类名 ====================
+/**
+ * 使用方式:
+ * <Transition name="slide-fade">
+ *   <component />
+ * </Transition>
+ */
+
+// ==================== 页面级过渡动画(Page Transitions) ====================
+
+/**
+ * 滑动+淡入淡出组合(推荐用于Tab/页面切换)
+ * 方向: 从右向左进入
+ */
+.slide-fade-enter-active {
+  transition: all $duration-slow $ease-default;
+}
+
+.slide-fade-leave-active {
+  transition: all $duration-normal $ease-in;
+}
+
+.slide-fade-enter-from {
+  transform: translateX(24px);
+  opacity: 0;
+}
+
+.slide-fade-leave-to {
+  transform: translateX(-24px);
+  opacity: 0;
+}
+
+/**
+ * 反向滑动+淡入淡出
+ * 方向: 从左向右进入
+ */
+.slide-fade-reverse-enter-active {
+  transition: all $duration-slow $ease-default;
+}
+
+.slide-fade-reverse-leave-active {
+  transition: all $duration-normal $ease-in;
+}
+
+.slide-fade-reverse-enter-from {
+  transform: translateX(-24px);
+  opacity: 0;
+}
+
+.slide-fade-reverse-leave-to {
+  transform: translateX(24px);
+  opacity: 0;
+}
+
+/**
+ * 缩放+淡入淡出
+ * 适合卡片式布局的页面切换
+ */
+.zoom-fade-enter-active,
+.zoom-fade-leave-active {
+  transition: all $duration-slow $ease-default;
+}
+
+.zoom-fade-enter-from,
+.zoom-fade-leave-to {
+  transform: scale(0.95);
+  opacity: 0;
+}
+
+/**
+ * 垂直滑动+淡入淡出
+ * 适合上下层叠的内容切换
+ */
+.slide-up-fade-enter-active {
+  transition: all $duration-slow $ease-out;
+}
+
+.slide-up-fade-leave-active {
+  transition: all $duration-fast $ease-in;
+}
+
+.slide-up-fade-enter-from {
+  transform: translateY(20px);
+  opacity: 0;
+}
+
+.slide-up-fade-leave-to {
+  transform: translateY(-10px);
+  opacity: 0;
+}
+
+/**
+ * 纯淡入淡出(最简单)
+ * 适合快速切换场景
+ */
+.fade-only-enter-active,
+.fade-only-leave-active {
+  transition: opacity $duration-normal $ease-default;
+}
+
+.fade-only-enter-from,
+.fade-only-leave-to {
+  opacity: 0;
+}
+
+// ==================== 列表项过渡动画(List Transitions) ====================
+
+/**
+ * 列表项交错入场
+ * 配合 <TransitionGroup> 使用
+ */
+.list-enter-active {
+  transition: all $duration-normal $ease-out;
+  
+  // 为每个列表项添加延迟,形成交错效果
+  @for $i from 1 through 10 {
+    &:nth-child(#{$i}) {
+      transition-delay: #{$i * 50}ms;
+    }
+  }
+}
+
+.list-leave-active {
+  transition: all $duration-fast $ease-in;
+  position: absolute; // 重要:使后续元素平滑移动
+}
+
+.list-enter-from {
+  opacity: 0;
+  transform: translateX(-16px);
+}
+
+.list-leave-to {
+  opacity: 0;
+  transform: translateX(16px);
+}
+
+.list-move {
+  transition: transform $duration-normal $ease-default;
+}
+
+/**
+ * 列表项垂直交错入场
+ */
+.list-vertical-enter-active {
+  transition: all $duration-normal $ease-out;
+  
+  @for $i from 1 through 10 {
+    &:nth-child(#{$i}) {
+      transition-delay: #{$i * 30}ms;
+    }
+  }
+}
+
+.list-vertical-leave-active {
+  transition: all $duration-fast $ease-in;
+}
+
+.list-vertical-enter-from {
+  opacity: 0;
+  transform: translateY(12px);
+}
+
+.list-vertical-leave-to {
+  opacity: 0;
+  transform: translateY(-8px);
+}
+
+// ==================== 对话框/弹窗过渡(Dialog Transitions) ====================
+
+/**
+ * 弹窗缩放进入
+ */
+.dialog-scale-enter-active {
+  transition: all $duration-enter $ease-out;
+}
+
+.dialog-scale-leave-active {
+  transition: all $duration-exit $ease-in;
+}
+
+.dialog-scale-enter-from,
+.dialog-scale-leave-to {
+  opacity: 0;
+  transform: scale(0.9) translateY(-10px);
+}
+
+/**
+ * 弹窗从底部滑入
+ */
+.dialog-slide-up-enter-active {
+  transition: all $duration-enter $ease-out;
+}
+
+.dialog-slide-up-leave-active {
+  transition: all $duration-exit $ease-in;
+}
+
+.dialog-slide-up-enter-from,
+.dialog-slide-up-leave-to {
+  opacity: 0;
+  transform: translateY(40px);
+}
+
+/**
+ * 遮罩层淡入淡出
+ */
+.overlay-fade-enter-active,
+.overlay-fade-leave-active {
+  transition: opacity $duration-normal $ease-default;
+}
+
+.overlay-fade-enter-from,
+.overlay-fade-leave-to {
+  opacity: 0;
+}
+
+// ==================== 折叠/展开过渡(Collapse Transitions) ====================
+
+/**
+ * 垂直折叠(高度变化)
+ */
+.collapse-vertical-enter-active,
+.collapse-vertical-leave-active {
+  transition: all $duration-slow $ease-default;
+  overflow: hidden;
+}
+
+.collapse-vertical-enter-from,
+.collapse-vertical-leave-to {
+  max-height: 0;
+  opacity: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  margin-top: 0;
+  margin-bottom: 0;
+}
+
+/**
+ * 水平折叠(宽度变化)
+ */
+.collapse-horizontal-enter-active,
+.collapse-horizontal-leave-active {
+  transition: all $duration-slow $ease-default;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.collapse-horizontal-enter-from,
+.collapse-horizontal-leave-to {
+  max-width: 0;
+  opacity: 0;
+  padding-left: 0;
+  padding-right: 0;
+  margin-left: 0;
+  margin-right: 0;
+}

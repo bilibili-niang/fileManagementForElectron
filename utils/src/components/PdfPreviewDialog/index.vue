@@ -16,10 +16,11 @@
           <v-btn
             :icon="isFullscreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen'"
             variant="text"
+            size="small"
             @click="toggleFullscreen"
             class="mr-2"
           ></v-btn>
-          <v-btn icon="mdi-close" variant="text" @click="close"></v-btn>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="close"></v-btn>
         </v-card-title>
         <v-card-subtitle v-if="filePath">{{ filePath }}</v-card-subtitle>
       </v-card-item>
@@ -56,6 +57,7 @@
           <v-btn
             icon="mdi-chevron-left"
             variant="text"
+            size="small"
             :disabled="currentPage <= 1"
             @click="prevPage"
           ></v-btn>
@@ -63,6 +65,7 @@
           <v-btn
             icon="mdi-chevron-right"
             variant="text"
+            size="small"
             :disabled="currentPage >= totalPages"
             @click="nextPage"
           ></v-btn>

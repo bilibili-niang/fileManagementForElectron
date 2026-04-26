@@ -1,0 +1,20 @@
+.dev-tools-btn {
+  position: fixed;
+  z-index: 9999;
+  cursor: grab;
+  user-select: none;
+
+  &:active {
+    cursor: grabbing;
+  }
+
+  .dev-tools-trigger {
+    border-radius: 50%;
+    width: 40px !important;
+    height: 40px !important;
+
+    :deep(.v-icon) {
+      font-size: 18px;
+    }
+  }
+}

@@ -1,7 +1,7 @@
 .file-search-container {
-  padding: 16px;
-  height: 100vh;
-  overflow: auto;
+  padding: 0;
+  height: 100%;
+  overflow: hidden;
 }
 
 .file-table :deep(.v-data-table__wrapper) {

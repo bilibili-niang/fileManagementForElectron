@@ -15,10 +15,11 @@
           <v-btn
             :icon="isFullscreen ? 'mdi-fullscreen-exit' : 'mdi-fullscreen'"
             variant="text"
+            size="small"
             @click="toggleFullscreen"
             class="mr-2"
           ></v-btn>
-          <v-btn icon="mdi-close" variant="text" @click="closeDialog"></v-btn>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="closeDialog"></v-btn>
         </v-card-title>
         <v-card-subtitle>{{ filePath }}</v-card-subtitle>
       </v-card-item>
