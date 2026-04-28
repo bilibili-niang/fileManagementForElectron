@@ -15,312 +15,122 @@
 
       <!-- 中间：主内容区 -->
       <main class="content-section">
-        <!-- 固定头部区域：Tab、搜索框、筛选条件 -->
-        <div class="search-header">
-          <!-- 搜索类型 Tab -->
-          <v-card variant="outlined" class="search-type-card mb-3">
-            <v-tabs v-model="searchType" color="primary" grow density="compact">
-              <v-tab value="filename" class="text-none px-4">
-                <v-icon icon="mdi-file-search" size="small" start></v-icon>
-                文件名
-              </v-tab>
-              <v-tab value="content" class="text-none px-4">
-                <v-icon icon="mdi-text-box-search" size="small" start></v-icon>
-                文件内容
-              </v-tab>
-            </v-tabs>
-          </v-card>
-
-          <!-- 索引进度提示 -->
-          <v-card
-            v-if="showIndexProgress && (indexStatus.isIndexing || indexStatus.totalFiles === 0)"
-            variant="outlined"
-            class="mb-3"
-            :color="indexStatus.isIndexing ? 'primary' : 'warning'"
-          >
-            <v-card-text class="py-2">
-              <div class="d-flex align-center">
-                <template v-if="indexStatus.isIndexing">
-                  <v-progress-circular
-                    indeterminate
-                    size="20"
-                    width="2"
-                    color="primary"
-                    class="mr-2"
-                  ></v-progress-circular>
-                  <div class="flex-grow-1">
-                    <div class="text-body-2">
-                      正在建立文件索引... {{ indexStatus.indexedFiles }} / {{ indexStatus.totalFiles }}
-                    </div>
-                    <v-progress-linear
-                      :model-value="indexStatus.totalFiles > 0 ? (indexStatus.indexedFiles / indexStatus.totalFiles * 100) : 0"
-                      height="4"
-                      color="primary"
-                      class="mt-1"
-                    ></v-progress-linear>
-                    <div class="text-caption text-grey mt-1 text-truncate" style="max-width: 100%;">
-                      {{ indexStatus.currentPath }}
-                    </div>
+        <!-- 索引进度提示 -->
+        <v-card
+          v-if="showIndexProgress && (indexStatus.isIndexing || indexStatus.totalFiles === 0)"
+          variant="outlined"
+          class="mb-3"
+          :color="indexStatus.isIndexing ? 'primary' : 'warning'"
+        >
+          <v-card-text class="py-2">
+            <div class="d-flex align-center">
+              <template v-if="indexStatus.isIndexing">
+                <v-progress-circular
+                  indeterminate
+                  size="20"
+                  width="2"
+                  color="primary"
+                  class="mr-2"
+                ></v-progress-circular>
+                <div class="flex-grow-1">
+                  <div class="text-body-2">
+                    正在建立文件索引... {{ indexStatus.indexedFiles }} / {{ indexStatus.totalFiles }}
                   </div>
-                </template>
-                <template v-else-if="indexStatus.totalFiles === 0">
-                  <v-icon icon="mdi-information" color="warning" class="mr-2"></v-icon>
-                  <span class="text-body-2 flex-grow-1">正在准备文件索引...</span>
-                </template>
-                <v-btn
-                  icon="mdi-close"
-                  size="small"
-                  variant="text"
-                  @click="showIndexProgress = false"
-                  class="ml-2"
-                ></v-btn>
-              </div>
-            </v-card-text>
-          </v-card>
-
-          <!-- 搜索框区域 -->
-          <div v-show="searchType === 'filename'" class="search-area">
-            <SearchBox
-              v-model="searchQuery"
-              :loading="loading"
-              placeholder="搜索文件... 支持语法：ext:pdf size:>10mb date:today path:downloads *.js"
-              :show-advanced-filters="true"
-              @search="performSearch"
-              @clear="clearSearch"
-            />
-
-            <!-- 筛选条件 -->
-            <v-row dense class="filter-row mt-2">
-              <v-col cols="6" sm="4" md="3">
-                <v-text-field
-                    v-model.number="minSizeFilter"
-                    label="最小 (MB)"
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    density="compact"
-                    variant="outlined"
-                    hide-details
-                ></v-text-field>
-              </v-col>
-
-              <v-col cols="6" sm="4" md="3">
-                <v-text-field
-                    v-model.number="maxSizeFilter"
-                    label="最大 (MB)"
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    density="compact"
-                    variant="outlined"
-                    hide-details
-                ></v-text-field>
-              </v-col>
-
-              <v-col cols="12" sm="4" md="6" class="d-flex align-center justify-end gap-2">
-                <v-btn
-                    variant="text"
+                  <v-progress-linear
+                    :model-value="indexStatus.totalFiles > 0 ? (indexStatus.indexedFiles / indexStatus.totalFiles * 100) : 0"
+                    height="4"
                     color="primary"
-                    size="small"
-                    prepend-icon="mdi-magnify"
-                    :loading="loading"
-                    @click="performSearch"
-                >
-                  搜索
-                </v-btn>
-                <v-btn
-                    variant="text"
-                    color="grey"
-                    size="small"
-                    prepend-icon="mdi-close-circle"
-                    @click="clearSearch"
-                >
-                  清空
-                </v-btn>
-              </v-col>
-            </v-row>
-          </div>
-
-          <!-- 文件内容搜索 -->
-          <div v-show="searchType === 'content'" class="search-area mt-3">
-            <SearchBox
-                v-model="contentQuery"
-                :loading="loadingContent"
-                placeholder="搜索文件内容..."
-                @search="performContentSearch"
-                @clear="clearContentSearch"
-            />
-          </div>
-
-          <!-- 搜索历史标签 -->
-          <div v-if="searchHistory.length > 0 && searchType === 'filename'" class="history-bar mt-3">
-            <span class="history-label">历史:</span>
-            <v-chip
-                v-for="item in searchHistory.slice(0, 8)"
-                :key="item.id"
-                size="small"
-                closable
-                class="mr-1"
-                @click="useHistoryItem(item)"
-                @click:close="removeHistory(item)"
-            >
-              {{ item.query }}
-            </v-chip>
-          </div>
-
-          <!-- 搜索结果统计 -->
-          <v-card v-if="files.length > 0 || loading" variant="flat" class="result-stats mt-3 pa-3">
-            <template v-if="loading">
-              <v-progress-linear indeterminate color="primary"></v-progress-linear>
-            </template>
-            <template v-else-if="files.length > 0">
-              <span class="stats-text">
-                找到 {{ totalFiles }} 个文件
-                <template v-if="selectedCategory !== 'all'">
-                  （{{ getCategoryLabel(selectedCategory) }}）
-                </template>
-              </span>
-            </template>
-            <template v-else-if="hasSearched && files.length === 0">
-              <span class="stats-text text-grey">未找到匹配的文件</span>
-            </template>
-          </v-card>
-        </div>
-
-        <!-- 可滚动内容区域：搜索结果列表 -->
-        <div class="search-content">
-          <v-card variant="outlined" class="results-table mt-3">
-            <div class="table-container">
-              <v-data-table-server
-                :headers="tableHeaders"
-                :items="files"
-                :items-length="totalFiles"
-                :loading="loading"
-                :page.sync="currentPage"
-                :items-per-page.sync="pageSize"
-                density="compact"
-                hover
-                show-select
-                item-value="id"
-                @update:options="handleTableUpdate"
-                @click:row="(event: any, row: any) => handleRowClick(row.item)"
-            >
-            <!-- 文件名列 -->
-            <template #item.name="{ item }">
-              <div class="d-flex align-center file-name-cell">
-                <FileIcon :extension="item.extension" :size="20" class="mr-2" />
-                <span class="file-name">{{ item.name }}</span>
-              </div>
-            </template>
-
-            <!-- 大小列 -->
-            <template #item.size="{ item }">
-              {{ formatFileSize(item.size) }}
-            </template>
-
-            <!-- 修改时间列 -->
-            <template #item.modified_time="{ item }">
-              {{ formatDate(item.modified_time) }}
-            </template>
-
-            <!-- 操作列 -->
-            <template #item.actions="{ item }">
-              <v-btn
-                  icon="mdi-open-in-app"
-                  variant="text"
-                  size="small"
-                  title="打开文件"
-                  @click.stop="openFile(item)"
-              ></v-btn>
-              <v-btn
-                  icon="mdi-folder-outline"
-                  variant="text"
-                  size="small"
-                  title="在资源管理器中打开"
-                  @click.stop="openInExplorer(item)"
-              ></v-btn>
-              <v-menu>
-                <template #activator="{ props }">
-                  <v-btn
-                      icon="mdi-dots-vertical"
-                      variant="text"
-                      size="small"
-                      v-bind="props"
-                      @click.stop
-                  ></v-btn>
-                </template>
-                <v-list density="compact">
-                  <v-list-item
-                      prepend-icon="mdi-star-outline"
-                      title="添加收藏"
-                      @click="addToFavorites(item)"
-                  ></v-list-item>
-                  <v-list-item
-                      prepend-icon="mdi-content-copy"
-                      title="复制路径"
-                      @click="copyPath(item)"
-                  ></v-list-item>
-                  <v-divider></v-divider>
-                  <v-list-item
-                      prepend-icon="mdi-delete"
-                      title="删除记录"
-                      class="text-error"
-                      @click="confirmDelete(item)"
-                  ></v-list-item>
-                </v-list>
-              </v-menu>
-            </template>
-
-              <!-- 无数据提示 -->
-              <template #no-data>
-                <div class="pa-8 text-center text-grey">
-                  <v-icon icon="mdi-file-search-outline" size="48" class="mb-3"></v-icon>
-                  <p>输入关键词开始搜索</p>
+                    class="mt-1"
+                  ></v-progress-linear>
+                  <div class="text-caption text-grey mt-1 text-truncate" style="max-width: 100%;">
+                    {{ indexStatus.currentPath }}
+                  </div>
                 </div>
               </template>
-            </v-data-table-server>
+              <template v-else-if="indexStatus.totalFiles === 0">
+                <v-icon icon="mdi-information" color="warning" class="mr-2"></v-icon>
+                <span class="text-body-2 flex-grow-1">正在准备文件索引...</span>
+              </template>
+              <v-btn
+                icon="mdi-close"
+                size="small"
+                variant="text"
+                @click="showIndexProgress = false"
+                class="ml-2"
+              ></v-btn>
             </div>
-          </v-card>
+          </v-card-text>
+        </v-card>
 
-        <!-- 分页控件 -->
-        <v-pagination
-            v-if="totalPages > 1"
-            v-model="currentPage"
-            :length="totalPages"
-            :total-visible="7"
-            density="comfortable"
-            class="mt-4"
-        ></v-pagination>
-
-        <!-- 索引进度条 -->
-        <v-progress-linear
-            v-if="indexingProgress > 0 && indexingProgress < 100"
-            :model-value="indexingProgress"
-            color="primary"
-            height="6"
-            rounded
-            class="mt-4"
-        >
-          <template #default="{ value }">
-            <strong>{{ Math.round(value) }}%</strong> - 索引中...
-          </template>
-        </v-progress-linear>
+        <!-- SuperTable 组件（包含搜索、表格、分页） -->
+        <div class="search-content">
+          <FileTableComponent />
         </div>
       </main>
 
-      <!-- 右侧：预览面板 -->
-      <aside v-if="showPreview" class="preview-section">
-        <FilePreviewPanel
-            v-model="showPreview"
-            :file="previewedFile"
-            :content="previewContent"
-            :width="350"
-            :min-width="250"
-            :max-width="600"
-            @close="closePreview"
-        />
-      </aside>
     </div>
+
+    <!-- 文件预览弹窗 -->
+    <v-dialog v-model="showPreview" max-width="800" max-height="90vh" scrollable>
+      <v-card v-if="previewedFile">
+        <v-card-title class="d-flex align-center">
+          <v-icon :icon="getFileIcon(previewedFile.extension)" class="mr-2" />
+          <span class="text-truncate">{{ previewedFile.name }}</span>
+          <v-spacer></v-spacer>
+          <v-btn icon="mdi-close" variant="text" size="small" @click="closePreview"></v-btn>
+        </v-card-title>
+        
+        <v-tabs v-model="previewTab" color="primary" density="compact">
+          <v-tab value="preview">
+            <v-icon icon="mdi-eye" size="small" start></v-icon>
+            预览
+          </v-tab>
+          <v-tab value="info">
+            <v-icon icon="mdi-information" size="small" start></v-icon>
+            信息
+          </v-tab>
+        </v-tabs>
+
+        <v-card-text style="max-height: 70vh; overflow-y: auto;">
+          <!-- 预览 Tab -->
+          <div v-if="previewTab === 'preview'" v-html="previewContent || '<div class=\'text-center py-8 text-grey\'>无法预览此文件</div>'"></div>
+          
+          <!-- 信息 Tab -->
+          <div v-else-if="previewTab === 'info'">
+            <v-list density="compact">
+              <v-list-item>
+                <v-list-item-title class="text-caption text-grey">文件名</v-list-item-title>
+                <v-list-item-subtitle>{{ previewedFile.name }}</v-list-item-subtitle>
+              </v-list-item>
+              <v-list-item>
+                <v-list-item-title class="text-caption text-grey">类型</v-list-item-title>
+                <v-list-item-subtitle>{{ previewedFile.extension.toUpperCase() }}</v-list-item-subtitle>
+              </v-list-item>
+              <v-list-item>
+                <v-list-item-title class="text-caption text-grey">大小</v-list-item-title>
+                <v-list-item-subtitle>{{ formatFileSize(previewedFile.size) }}</v-list-item-subtitle>
+              </v-list-item>
+              <v-list-item>
+                <v-list-item-title class="text-caption text-grey">修改时间</v-list-item-title>
+                <v-list-item-subtitle>{{ formatDate(previewedFile.modified_time) }}</v-list-item-subtitle>
+              </v-list-item>
+              <v-list-item>
+                <v-list-item-title class="text-caption text-grey">路径</v-list-item-title>
+                <v-list-item-subtitle class="text-caption" style="word-break: break-all;">{{ previewedFile.path }}</v-list-item-subtitle>
+              </v-list-item>
+            </v-list>
+          </div>
+        </v-card-text>
+
+        <v-card-actions>
+          <v-spacer></v-spacer>
+          <v-btn variant="text" @click="closePreview">关闭</v-btn>
+          <v-btn color="primary" variant="elevated" prepend-icon="mdi-open-in-app" @click="openFile(previewedFile)">
+            打开文件
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <!-- 删除确认对话框 -->
     <v-dialog v-model="deleteDialogVisible" max-width="400">
@@ -357,18 +167,18 @@
  * 支持分类浏览、高级搜索语法、增强预览面板
  */
 
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, h } from 'vue'
 import { searchApi } from '@/api'
 import type { SearchResult, FileCountByCategory } from '@/api/types'
 import CategoryList from '@/components/CategoryList/index.tsx'
-import SearchBox from './components/SearchBox/index.tsx'
-import FilePreviewPanel from './components/FilePreviewPanel/index.tsx'
 import FileIcon from '@/components/FileIcon/index.vue'
 import { favoritesApi } from '@/api/modules/favorites'
 import { recentApi } from '@/api/modules/favorites'
 import { CATEGORY_CONFIGS, type FileCategory } from '@/utils/fileCategory'
 import { useIndexingStore } from '@/stores/indexing'
 import { SIDEBAR_WIDTH, DEFAULT_PAGE_SIZE, PREVIEW_PANEL_WIDTH, PREVIEW_PANEL_MIN_WIDTH, PREVIEW_PANEL_MAX_WIDTH, SNACKBAR_TIMEOUT } from '@/constants/fileSearch'
+import { SuperTable } from '@/components/SuperTable'
+import type { SuperTableConfig, TableColumn, ActionColumn } from '@/components/SuperTable/types'
 
 // ==================== 类型定义 ====================
 
@@ -465,14 +275,180 @@ const snackbar = ref<SnackbarState>({
 /** 选中的行 */
 const selectedRows = ref<number[]>([])
 
-// ==================== 表格配置 ====================
+/** 预览 Tab */
+const previewTab = ref<'preview' | 'info'>('preview')
 
-const tableHeaders = [
-  { title: '文件名', key: 'name', sortable: true },
-  { title: '大小', key: 'size', sortable: true, width: '100px' },
-  { title: '修改时间', key: 'modified_time', sortable: true, width: '180px' },
-  { title: '操作', key: 'actions', sortable: false, width: '150px', align: 'end' as const }
-]
+// ==================== SuperTable 配置 ====================
+
+const fileTableConfig = computed<SuperTableConfig<FileItem>>(() => ({
+  data: () => files.value,
+  title: {
+    title: '文件列表',
+    icon: 'mdi-file-document-multiple'
+  },
+  columns: [
+    {
+      key: 'name',
+      title: '文件名',
+      sortable: true,
+      customRender: (record: FileItem) => {
+        return h('div', { class: 'd-flex align-center file-name-cell' }, [
+          h(FileIcon, { extension: record.extension, size: 20, class: 'mr-2' }),
+          h('span', { class: 'file-name' }, record.name)
+        ])
+      }
+    },
+    {
+      key: 'size',
+      title: '大小',
+      sortable: true,
+      width: '100px',
+      format: (value: number) => formatFileSize(value)
+    },
+    {
+      key: 'modified_time',
+      title: '修改时间',
+      sortable: true,
+      width: '180px',
+      format: (value: string) => formatDate(value)
+    }
+  ] as TableColumn<FileItem>[],
+  actions: [
+    {
+      icon: 'mdi-open-in-app',
+      tooltip: '打开文件',
+      onClick: (record: FileItem) => openFile(record)
+    },
+    {
+      icon: 'mdi-folder-outline',
+      tooltip: '在资源管理器中打开',
+      onClick: (record: FileItem) => openInExplorer(record)
+    },
+    {
+      customRender: (record: FileItem) => {
+        return h('div', { class: 'd-flex align-center' }, [
+          h('div', {
+            onClick: (e: Event) => e.stopPropagation()
+          }, [
+            h('v-menu', {}, {
+              default: () => h('v-list', { density: 'compact' }, [
+                h('v-list-item', {
+                  prependIcon: 'mdi-star-outline',
+                  title: '添加收藏',
+                  onClick: () => addToFavorites(record)
+                }),
+                h('v-list-item', {
+                  prependIcon: 'mdi-content-copy',
+                  title: '复制路径',
+                  onClick: () => copyPath(record)
+                }),
+                h('v-divider', {}),
+                h('v-list-item', {
+                  prependIcon: 'mdi-delete',
+                  title: '删除记录',
+                  class: 'text-error',
+                  onClick: () => confirmDelete(record)
+                })
+              ]),
+              activator: ({ props }: { props: any }) => h('v-btn', {
+                ...props,
+                icon: 'mdi-dots-vertical',
+                variant: 'text',
+                size: 'small',
+                onClick: (e: Event) => e.stopPropagation()
+              })
+            })
+          ])
+        ])
+      }
+    }
+  ] as ActionColumn<FileItem>[],
+  toolBar: [
+    {
+      icon: 'mdi-refresh',
+      tooltip: '刷新',
+      onClick: () => refreshFileTable()
+    }
+  ],
+  search: {
+    position: 'toolbar',
+    layout: 'compact',
+    fields: [
+      // 1. 主搜索框 - 完整显示
+      {
+        key: 'query',
+        label: '搜索',
+        type: 'input',
+        placeholder: '搜索文件...',
+        showInCompact: true,
+        compactStyle: 'full',
+        compactWidth: '400px'
+      },
+      // 2. 文件大小范围 - 完整显示（两个数字输入框）
+      {
+        key: 'sizeRange',
+        label: '大小',
+        type: 'range',
+        min: 0,
+        max: 1024,
+        unit: 'MB',
+        showInCompact: true,
+        compactStyle: 'full'
+      },
+      // 3. 文件类型 - 完整显示（下拉选择）
+      {
+        key: 'fileType',
+        label: '类型',
+        type: 'select',
+        options: fileTypeOptions,
+        showInCompact: true,
+        compactStyle: 'full',
+        compactWidth: '160px'
+      }
+    ],
+    buttons: {
+      search: {
+        text: '搜索',
+        icon: 'mdi-magnify',
+        color: 'primary',
+        variant: 'elevated',
+        show: true
+      },
+      reset: {
+        text: '重置',
+        icon: 'mdi-refresh',
+        show: true,
+        variant: 'text'
+      }
+    }
+  },
+  pagination: {
+    page: currentPage.value,
+    pageSize: pageSize.value,
+    total: totalFiles.value
+  },
+  onRowClick: (record: FileItem) => handleRowClick(record),
+  rowKey: 'id'
+}))
+
+// SuperTable 实例
+let fileTable: ReturnType<typeof SuperTable<FileItem>> | null = null
+const FileTableComponent = computed(() => {
+  fileTable = SuperTable(fileTableConfig.value)
+  return fileTable.Table()
+})
+
+const refreshFileTable = async () => {
+  if (selectedCategory.value !== 'all') {
+    await loadByCategory(selectedCategory.value)
+  } else if (searchType.value === 'filename' && searchQuery.value) {
+    await performSearch()
+  } else if (searchType.value === 'content' && contentQuery.value) {
+    await performContentSearch()
+  } else {
+    await loadAllFiles()
+  }
+}
 
 const fileTypeOptions = [
   { label: '图片', value: 'image' },
@@ -879,6 +855,38 @@ function closePreview(): void {
   showPreview.value = false
   previewedFile.value = null
   previewContent.value = ''
+  previewTab.value = 'preview'
+}
+
+/**
+ * 获取文件类型对应的图标名称
+ */
+function getFileIcon(extension: string): string {
+  const ext = extension.toLowerCase()
+
+  if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg'].includes(ext)) {
+    return 'mdi-image'
+  }
+  if (['mp4', 'avi', 'mkv', 'mov', 'wmv'].includes(ext)) {
+    return 'mdi-video'
+  }
+  if (['mp3', 'wav', 'flac', 'aac'].includes(ext)) {
+    return 'mdi-music'
+  }
+  if (['pdf'].includes(ext)) {
+    return 'mdi-file-pdf-box'
+  }
+  if (['doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx'].includes(ext)) {
+    return 'mdi-file-document'
+  }
+  if (['zip', 'rar', '7z', 'tar', 'gz'].includes(ext)) {
+    return 'mdi-folder-zip'
+  }
+  if (['js', 'ts', 'vue', 'py', 'java', 'go', 'rs'].includes(ext)) {
+    return 'mdi-code-braces'
+  }
+
+  return 'mdi-file'
 }
 
 /**
@@ -1068,57 +1076,17 @@ onUnmounted(() => {
   overflow: hidden;
   padding: 0 24px;
 
-  .search-type-card {
-    border-radius: 8px;
-    flex-shrink: 0;
-  }
-
-  .search-header {
-    flex-shrink: 0;
-  }
-
   .search-content {
     flex: 1;
     overflow-y: auto;
     min-height: 0;
   }
 
-  .search-area {
-    margin-top: 16px;
-  }
-
-  .filter-row {
-    align-items: center;
-  }
-
-  .history-bar {
-    display: flex;
-    align-items: center;
-    flex-wrap: wrap;
-    gap: 8px;
-
-    .history-label {
-      font-size: 13px;
-      font-weight: 500;
-      color: rgba(var(--v-theme-on-surface), 0.6);
-      margin-right: 4px;
-    }
-  }
-
-  .result-stats {
-    border-radius: 8px;
-
-    .stats-text {
-      font-size: 14px;
-      font-weight: 500;
-    }
-  }
-
   .results-table {
     border-radius: 8px;
 
     .table-container {
-      height: calc(100vh - 280px);
+      height: calc(100vh - 200px);
       overflow-y: auto;
     }
 
@@ -1132,28 +1100,6 @@ onUnmounted(() => {
         }
       }
     }
-  }
-}
-
-.preview-section {
-  flex-shrink: 0;
-  width: 350px;
-  border-radius: 8px;
-  overflow: hidden;
-  box-shadow: -2px 0 8px rgba(0, 0, 0, 0.08);
-
-  @media (max-width: 1279px) {
-    position: fixed;
-    right: 0;
-    top: 64px;
-    bottom: 0;
-    width: 350px;
-    z-index: 99;
-    box-shadow: -4px 0 12px rgba(0, 0, 0, 0.15);
-  }
-
-  @media (max-width: 959px) {
-    display: none;
   }
 }
 </style>

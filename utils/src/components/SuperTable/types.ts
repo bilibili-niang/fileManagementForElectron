@@ -83,11 +83,101 @@ export interface SearchField {
   /** 标签 */
   label: string
   /** 类型 */
-  type: 'input' | 'select' | 'date'
+  type: 'input' | 'select' | 'date' | 'number' | 'range' | 'boolean' | 'custom'
   /** 选项（select类型使用） */
-  options?: { label: string; value: any }[]
+  options?: { label: string; value: any; icon?: string }[]
   /** 占位符 */
   placeholder?: string
+
+  // 新增配置
+  /** 是否在紧凑模式显示 */
+  showInCompact?: boolean
+  /** 紧凑模式展示样式 */
+  compactStyle?: 'full' | 'icon' | 'chip' | 'text'
+  /** 紧凑模式宽度 */
+  compactWidth?: string
+  /** 紧凑模式自定义图标（icon样式使用） */
+  compactIcon?: string
+  /** 是否为高级筛选（收起状态隐藏） */
+  advanced?: boolean
+  /** 范围配置（range/number类型使用） */
+  min?: number
+  max?: number
+  unit?: string
+  /** Chip配置（chip样式使用） */
+  chipConfig?: {
+    activeIcon?: string
+    inactiveIcon?: string
+    activeColor?: string
+    activeText?: string
+    inactiveText?: string
+    variant?: 'text' | 'outlined' | 'elevated'
+    size?: 'x-small' | 'small' | 'default'
+  }
+  /** 文本按钮配置（text样式使用） */
+  textConfig?: {
+    label?: string
+    icon?: string
+  }
+  /** 自定义渲染 */
+  customRender?: (props: {
+    value: any
+    onChange: (value: any) => void
+    mode: 'default' | 'compact'
+  }) => VNode
+}
+
+/**
+ * 搜索按钮配置
+ */
+export interface SearchButtonConfig {
+  text?: string
+  icon?: string
+  color?: string
+  variant?: 'text' | 'outlined' | 'elevated' | 'flat' | 'tonal'
+  show?: boolean
+}
+
+/**
+ * 筛选弹窗配置
+ */
+export interface FilterDialogConfig {
+  /** 弹窗类型 */
+  type?: 'dropdown' | 'dialog' | 'drawer'
+  /** 弹窗标题 */
+  title?: string
+  /** 弹窗宽度（dialog/drawer使用） */
+  width?: string | number
+  /** 是否显示已选数量徽章 */
+  showBadge?: boolean
+  /** 徽章颜色 */
+  badgeColor?: string
+}
+
+/**
+ * 搜索配置
+ */
+export interface SearchConfig {
+  /** 搜索位置 */
+  position?: 'header' | 'toolbar' | 'default'
+  /** 搜索布局 */
+  layout?: 'inline' | 'compact' | 'custom'
+  /** 搜索字段 */
+  fields: SearchField[]
+  /** 按钮配置 */
+  buttons?: {
+    search?: SearchButtonConfig
+    reset?: SearchButtonConfig
+  }
+  /** 筛选弹窗配置 */
+  filterDialog?: FilterDialogConfig
+  /** 自定义渲染（layout: 'custom'时使用） */
+  customRender?: (props: {
+    fields: SearchField[]
+    values: Record<string, any>
+    onSearch: (values: Record<string, any>) => void
+    onReset: () => void
+  }) => VNode
 }
 
 /**
@@ -161,14 +251,10 @@ export interface SuperTableConfig<T = any> {
   onRowClick?: (record: T) => void
   /** 行右键菜单事件 */
   onRowContextmenu?: (record: T, event: MouseEvent) => void
-  /** 行右键菜单事件 */
-  onRowContextmenu?: (record: T, event: MouseEvent) => void
   /** 分页配置 */
   pagination?: PaginationConfig | boolean
   /** 搜索配置 */
-  search?: {
-    fields: SearchField[]
-  }
+  search?: SearchConfig
   /** 行唯一标识字段 */
   rowKey?: string
   /** 表格高度 */
@@ -209,4 +295,10 @@ export interface SuperTableReturn<T = any> {
   toggleMultiSelect: () => void
   /** 清空选中 */
   clearSelection: () => void
+  /** 搜索值引用 */
+  searchValues: { value: Record<string, any> }
+  /** 设置搜索值 */
+  setSearchValues: (values: Record<string, any>) => void
+  /** 重置搜索 */
+  resetSearch: () => void
 }

@@ -3,8 +3,6 @@ import type {
   SuperTableConfig,
   SuperTableReturn,
   TableColumn,
-  ToolbarAction,
-  ActionColumn,
   RequestParams,
   RequestResponse
 } from './types'
@@ -178,7 +176,7 @@ export function SuperTable<T extends Record<string, any> = any>(
     if (index > -1) {
       selectedRowsRef.value.splice(index, 1)
     } else {
-      selectedRowsRef.value.push(row)
+      ;(selectedRowsRef.value as any).push(row)
     }
   }
 
@@ -197,7 +195,7 @@ export function SuperTable<T extends Record<string, any> = any>(
     if (selectedRowsRef.value.length === dataRef.value.length) {
       selectedRowsRef.value = []
     } else {
-      selectedRowsRef.value = [...dataRef.value]
+      selectedRowsRef.value = [...dataRef.value] as any
     }
   }
 
@@ -235,8 +233,9 @@ export function SuperTable<T extends Record<string, any> = any>(
       return config.title.customRender()
     }
 
-    // 如果没有标题配置，但有工具栏，渲染默认工具栏
-    if (!config.title && !config.toolBar?.length) {
+    // 如果没有标题配置，但有工具栏或搜索在toolbar位置，渲染默认工具栏
+    const searchInToolbar = config.search?.position === 'toolbar'
+    if (!config.title && !config.toolBar?.length && !searchInToolbar) {
       return null
     }
 
@@ -259,7 +258,7 @@ export function SuperTable<T extends Record<string, any> = any>(
           {isMultiSelectMode.value && selectedRowsRef.value.length > 0 && config.batchActions && (
             <div class="super-table-batch-actions mr-2">
               {config.batchActions.map((action, index) => {
-                if (action.show && !action.show(selectedRowsRef.value)) {
+                if (action.show && !action.show(selectedRowsRef.value as any)) {
                   return null
                 }
                 return (
@@ -269,13 +268,28 @@ export function SuperTable<T extends Record<string, any> = any>(
                     color={action.color}
                     variant="outlined"
                     prepend-icon={action.icon}
-                    onClick={() => action.onClick(selectedRowsRef.value)}
+                    onClick={() => action.onClick(selectedRowsRef.value as any)}
                     class="mr-2"
                   >
                     {action.label}
                   </v-btn>
                 )
               })}
+            </div>
+          )}
+          {/* 搜索表单（toolbar位置） */}
+          {searchInToolbar && config.search && (
+            <div class="mr-2">
+              <SearchForm
+                fields={config.search.fields}
+                config={config.search}
+                values={searchValues.value}
+                onSearch={search}
+                onReset={() => {
+                  searchValues.value = {}
+                }}
+                mode="toolbar"
+              />
             </div>
           )}
           {renderToolbarButtons()}
@@ -395,7 +409,7 @@ export function SuperTable<T extends Record<string, any> = any>(
 
           return (
             <v-btn
-              key={action.icon + index}
+              key={(action.icon || 'action') + index}
               icon
               size="small"
               variant="text"
@@ -474,12 +488,18 @@ export function SuperTable<T extends Record<string, any> = any>(
         <div class="super-table-container">
           {renderTitle()}
 
-          {/* 搜索表单 */}
-          {config.search && config.search.fields.length > 0 && (
+          {/* 搜索表单（非toolbar位置） */}
+          {config.search && config.search.fields.length > 0 && config.search.position !== 'toolbar' && (
             <SearchForm
               fields={config.search.fields}
+              config={config.search}
+              values={searchValues.value}
               onSearch={search}
-            ></SearchForm>
+              onReset={() => {
+                searchValues.value = {}
+              }}
+              mode={config.search.layout === 'compact' ? 'compact' : 'default'}
+            />
           )}
 
           <v-card variant="outlined" class="super-table-card">
@@ -607,6 +627,24 @@ export function SuperTable<T extends Record<string, any> = any>(
     selectedRowsRef.value = []
   }
 
+  /**
+   * 设置搜索值（暴露给外部使用）
+   */
+  const setSearchValues = (values: Record<string, any>): void => {
+    searchValues.value = { ...values }
+  }
+
+  /**
+   * 重置搜索（暴露给外部使用）
+   */
+  const resetSearch = async (): Promise<void> => {
+    searchValues.value = {}
+    if (paginationRef.value) {
+      paginationRef.value.page = 1
+    }
+    await loadData()
+  }
+
   return {
     Table: () => h(TableComponent),
     dataRef: dataRef as { value: T[] },
@@ -618,7 +656,10 @@ export function SuperTable<T extends Record<string, any> = any>(
       value: { page: number; pageSize: number; total: number }
     },
     toggleMultiSelect,
-    clearSelection
+    clearSelection,
+    searchValues: searchValues as { value: Record<string, any> },
+    setSearchValues,
+    resetSearch
   }
 }
 
