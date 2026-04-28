@@ -205,7 +205,6 @@ function checkBackendReady(timeoutMs = 30000) {
       }, (res) => {
         if (res.statusCode === 200) {
           if (!backendReadyLogged) {
-            console.log('Backend service is ready')
             backendReadyLogged = true
           }
           resolve(true)

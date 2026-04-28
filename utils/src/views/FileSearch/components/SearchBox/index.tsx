@@ -329,19 +329,7 @@ export default defineComponent({
           </div>
         )}
 
-        {/* 快捷语法帮助 */}
-        {isFocused.value && props.showAdvancedFilters && !internalValue.value && (
-          <div class="syntax-help">
-            <div class="help-title">支持的搜索语法：</div>
-            <div class="help-items">
-              <code>{'ext:pdf'}</code>
-              <code>{'size:>10mb'}</code>
-              <code>{'date:today'}</code>
-              <code>{'path:downloads'}</code>
-              <code>{'*.js'}</code>
-            </div>
-          </div>
-        )}
+
       </div>
     )
   }

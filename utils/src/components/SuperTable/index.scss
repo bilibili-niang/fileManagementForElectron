@@ -1,0 +1,163 @@
+@import '@/styles/design-tokens.scss';
+
+/**
+ * SuperTable 组件样式
+ */
+.super-table-container {
+  width: 100%;
+}
+
+/**
+ * 标题栏
+ */
+.super-table-title-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: $spacing-md;
+  padding: $spacing-sm $spacing-md;
+  background: rgba(var(--v-theme-surface), 1);
+  border-radius: $radius-md;
+  border: 1px solid $border-color;
+}
+
+.super-table-title-left {
+  display: flex;
+  align-items: center;
+}
+
+.super-table-title-text {
+  font-size: $font-size-lg;
+  font-weight: $font-weight-semibold;
+  color: rgba(var(--v-theme-on-surface), 0.87);
+}
+
+.super-table-title-right {
+  display: flex;
+  align-items: center;
+}
+
+/**
+ * 批量操作按钮区域
+ */
+.super-table-batch-actions {
+  display: flex;
+  align-items: center;
+}
+
+/**
+ * 工具栏
+ */
+.super-table-toolbar {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+/**
+ * 表格卡片
+ */
+.super-table-card {
+  overflow: hidden;
+
+  .v-data-table {
+    .v-data-table__th {
+      font-weight: $font-weight-semibold;
+      background: rgba(var(--v-theme-surface-variant), 0.5);
+    }
+
+    .v-data-table-row {
+      &:hover {
+        background: rgba(var(--v-theme-primary), 0.05);
+      }
+    }
+  }
+}
+
+/**
+ * 分页区域
+ */
+.super-table-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: $spacing-md;
+  padding: $spacing-md;
+  border-top: 1px solid $border-color;
+
+  .pagination-right {
+    gap: $spacing-lg;
+  }
+
+  .page-size-select {
+    width: 130px;
+    flex-shrink: 0;
+
+    .v-field__input {
+      padding-top: 0;
+      padding-bottom: 0;
+      min-height: 32px;
+    }
+  }
+
+  .v-pagination {
+    .v-btn {
+      min-width: 32px;
+      height: 32px;
+    }
+  }
+}
+
+/**
+ * 多选模式样式
+ */
+.super-table-container {
+  .v-checkbox {
+    margin: 0;
+    padding: 0;
+  }
+}
+
+/**
+ * 选中行高亮
+ */
+.text-primary {
+  color: rgb(var(--v-theme-primary));
+}
+
+.font-weight-medium {
+  font-weight: $font-weight-medium;
+}
+
+/**
+ * 操作按钮区域
+ */
+.super-table-actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+}
+
+/**
+ * 移动端适配
+ */
+@media (max-width: $breakpoint-sm) {
+  .super-table-toolbar {
+    flex-wrap: wrap;
+    padding: $spacing-sm;
+  }
+
+  .super-table-pagination {
+    flex-direction: column;
+    gap: $spacing-sm;
+
+    .v-pagination {
+      order: 2;
+    }
+
+    .page-size-select {
+      order: 1;
+      width: 100%;
+    }
+  }
+}

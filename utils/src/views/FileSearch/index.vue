@@ -4,190 +4,207 @@
     <div class="main-layout">
       <!-- 左侧：分类导航侧边栏 -->
       <aside class="sidebar-section">
-        <CategorySidebar
+        <CategoryList
           v-model="selectedCategory"
+          show-extra-items
           @select="handleCategorySelect"
+          @select-favorite="handleSelectFavorite"
+          @select-recent="handleSelectRecent"
         />
       </aside>
 
       <!-- 中间：主内容区 -->
       <main class="content-section">
-        <!-- 搜索类型 Tab -->
-        <v-card variant="outlined" class="search-type-card mb-3">
-          <v-tabs v-model="searchType" color="primary" grow density="compact">
-            <v-tab value="filename" class="text-none px-4">
-              <v-icon icon="mdi-file-search" size="small" start></v-icon>
-              文件名
-            </v-tab>
-            <v-tab value="content" class="text-none px-4">
-              <v-icon icon="mdi-text-box-search" size="small" start></v-icon>
-              文件内容
-            </v-tab>
-          </v-tabs>
-        </v-card>
+        <!-- 固定头部区域：Tab、搜索框、筛选条件 -->
+        <div class="search-header">
+          <!-- 搜索类型 Tab -->
+          <v-card variant="outlined" class="search-type-card mb-3">
+            <v-tabs v-model="searchType" color="primary" grow density="compact">
+              <v-tab value="filename" class="text-none px-4">
+                <v-icon icon="mdi-file-search" size="small" start></v-icon>
+                文件名
+              </v-tab>
+              <v-tab value="content" class="text-none px-4">
+                <v-icon icon="mdi-text-box-search" size="small" start></v-icon>
+                文件内容
+              </v-tab>
+            </v-tabs>
+          </v-card>
 
-        <!-- 索引进度提示 -->
-        <v-card
-          v-if="indexStatus.isIndexing || indexStatus.totalFiles === 0"
-          variant="outlined"
-          class="mb-3"
-          :color="indexStatus.isIndexing ? 'primary' : 'warning'"
-        >
-          <v-card-text class="py-2">
-            <div v-if="indexStatus.isIndexing" class="d-flex align-center">
-              <v-progress-circular
-                indeterminate
-                size="20"
-                width="2"
-                color="primary"
-                class="mr-2"
-              ></v-progress-circular>
-              <div class="flex-grow-1">
-                <div class="text-body-2">
-                  正在建立文件索引... {{ indexStatus.indexedFiles }} / {{ indexStatus.totalFiles }}
-                </div>
-                <v-progress-linear
-                  :model-value="indexStatus.totalFiles > 0 ? (indexStatus.indexedFiles / indexStatus.totalFiles * 100) : 0"
-                  height="4"
-                  color="primary"
-                  class="mt-1"
-                ></v-progress-linear>
-                <div class="text-caption text-grey mt-1 text-truncate" style="max-width: 100%;">
-                  {{ indexStatus.currentPath }}
-                </div>
+          <!-- 索引进度提示 -->
+          <v-card
+            v-if="showIndexProgress && (indexStatus.isIndexing || indexStatus.totalFiles === 0)"
+            variant="outlined"
+            class="mb-3"
+            :color="indexStatus.isIndexing ? 'primary' : 'warning'"
+          >
+            <v-card-text class="py-2">
+              <div class="d-flex align-center">
+                <template v-if="indexStatus.isIndexing">
+                  <v-progress-circular
+                    indeterminate
+                    size="20"
+                    width="2"
+                    color="primary"
+                    class="mr-2"
+                  ></v-progress-circular>
+                  <div class="flex-grow-1">
+                    <div class="text-body-2">
+                      正在建立文件索引... {{ indexStatus.indexedFiles }} / {{ indexStatus.totalFiles }}
+                    </div>
+                    <v-progress-linear
+                      :model-value="indexStatus.totalFiles > 0 ? (indexStatus.indexedFiles / indexStatus.totalFiles * 100) : 0"
+                      height="4"
+                      color="primary"
+                      class="mt-1"
+                    ></v-progress-linear>
+                    <div class="text-caption text-grey mt-1 text-truncate" style="max-width: 100%;">
+                      {{ indexStatus.currentPath }}
+                    </div>
+                  </div>
+                </template>
+                <template v-else-if="indexStatus.totalFiles === 0">
+                  <v-icon icon="mdi-information" color="warning" class="mr-2"></v-icon>
+                  <span class="text-body-2 flex-grow-1">正在准备文件索引...</span>
+                </template>
+                <v-btn
+                  icon="mdi-close"
+                  size="small"
+                  variant="text"
+                  @click="showIndexProgress = false"
+                  class="ml-2"
+                ></v-btn>
               </div>
-            </div>
-            <div v-else-if="indexStatus.totalFiles === 0" class="d-flex align-center">
-              <v-icon icon="mdi-information" color="warning" class="mr-2"></v-icon>
-              <span class="text-body-2">正在准备文件索引...</span>
-            </div>
-          </v-card-text>
-        </v-card>
+            </v-card-text>
+          </v-card>
 
-        <!-- 搜索框区域 -->
-        <div v-show="searchType === 'filename'" class="search-area">
-          <SearchBox
-            v-model="searchQuery"
-            :loading="loading"
-            placeholder="搜索文件... 支持语法：ext:pdf size:>10mb date:today path:downloads *.js"
-            :show-advanced-filters="true"
-            @search="performSearch"
-            @clear="clearSearch"
-          />
-
-          <!-- 筛选条件 -->
-          <v-row dense class="filter-row mt-2">
-            <v-col cols="6" sm="4" md="3">
-              <v-text-field
-                  v-model.number="minSizeFilter"
-                  label="最小 (MB)"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  density="compact"
-                  variant="outlined"
-                  hide-details
-              ></v-text-field>
-            </v-col>
-
-            <v-col cols="6" sm="4" md="3">
-              <v-text-field
-                  v-model.number="maxSizeFilter"
-                  label="最大 (MB)"
-                  type="number"
-                  min="0"
-                  step="0.1"
-                  density="compact"
-                  variant="outlined"
-                  hide-details
-              ></v-text-field>
-            </v-col>
-
-            <v-col cols="12" sm="4" md="6" class="d-flex align-center justify-end gap-2">
-              <v-btn
-                  variant="text"
-                  color="primary"
-                  size="small"
-                  prepend-icon="mdi-magnify"
-                  :loading="loading"
-                  @click="performSearch"
-              >
-                搜索
-              </v-btn>
-              <v-btn
-                  variant="text"
-                  color="grey"
-                  size="small"
-                  prepend-icon="mdi-close-circle"
-                  @click="clearSearch"
-              >
-                清空
-              </v-btn>
-            </v-col>
-          </v-row>
-        </div>
-
-        <!-- 文件内容搜索 -->
-        <div v-show="searchType === 'content'" class="search-area mt-3">
-          <SearchBox
-              v-model="contentQuery"
-              :loading="loadingContent"
-              placeholder="搜索文件内容..."
-              @search="performContentSearch"
-              @clear="clearContentSearch"
-          />
-        </div>
-
-        <!-- 搜索历史标签 -->
-        <div v-if="searchHistory.length > 0 && searchType === 'filename'" class="history-bar mt-3">
-          <span class="history-label">历史:</span>
-          <v-chip
-              v-for="item in searchHistory.slice(0, 8)"
-              :key="item.id"
-              size="small"
-              closable
-              class="mr-1"
-              @click="useHistoryItem(item)"
-              @click:close="removeHistory(item)"
-          >
-            {{ item.query }}
-          </v-chip>
-        </div>
-
-        <!-- 搜索结果统计 -->
-        <v-card v-if="files.length > 0 || loading" variant="flat" class="result-stats mt-3 pa-3">
-          <template v-if="loading">
-            <v-progress-linear indeterminate color="primary"></v-progress-linear>
-          </template>
-          <template v-else-if="files.length > 0">
-            <span class="stats-text">
-              找到 {{ totalFiles }} 个文件
-              <template v-if="selectedCategory !== 'all'">
-                （{{ getCategoryLabel(selectedCategory) }}）
-              </template>
-            </span>
-          </template>
-          <template v-else-if="hasSearched && files.length === 0">
-            <span class="stats-text text-grey">未找到匹配的文件</span>
-          </template>
-        </v-card>
-
-        <!-- 搜索结果列表 -->
-        <v-card variant="outlined" class="results-table mt-3">
-          <v-data-table-server
-              :headers="tableHeaders"
-              :items="files"
-              :items-length="totalFiles"
+          <!-- 搜索框区域 -->
+          <div v-show="searchType === 'filename'" class="search-area">
+            <SearchBox
+              v-model="searchQuery"
               :loading="loading"
-              :page.sync="currentPage"
-              :items-per-page.sync="pageSize"
-              density="compact"
-              hover
-              show-select
-              item-value="id"
-              @update:options="handleTableUpdate"
-              @click:row="(event: any, row: any) => handleRowClick(row.item)"
-          >
+              placeholder="搜索文件... 支持语法：ext:pdf size:>10mb date:today path:downloads *.js"
+              :show-advanced-filters="true"
+              @search="performSearch"
+              @clear="clearSearch"
+            />
+
+            <!-- 筛选条件 -->
+            <v-row dense class="filter-row mt-2">
+              <v-col cols="6" sm="4" md="3">
+                <v-text-field
+                    v-model.number="minSizeFilter"
+                    label="最小 (MB)"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                ></v-text-field>
+              </v-col>
+
+              <v-col cols="6" sm="4" md="3">
+                <v-text-field
+                    v-model.number="maxSizeFilter"
+                    label="最大 (MB)"
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    density="compact"
+                    variant="outlined"
+                    hide-details
+                ></v-text-field>
+              </v-col>
+
+              <v-col cols="12" sm="4" md="6" class="d-flex align-center justify-end gap-2">
+                <v-btn
+                    variant="text"
+                    color="primary"
+                    size="small"
+                    prepend-icon="mdi-magnify"
+                    :loading="loading"
+                    @click="performSearch"
+                >
+                  搜索
+                </v-btn>
+                <v-btn
+                    variant="text"
+                    color="grey"
+                    size="small"
+                    prepend-icon="mdi-close-circle"
+                    @click="clearSearch"
+                >
+                  清空
+                </v-btn>
+              </v-col>
+            </v-row>
+          </div>
+
+          <!-- 文件内容搜索 -->
+          <div v-show="searchType === 'content'" class="search-area mt-3">
+            <SearchBox
+                v-model="contentQuery"
+                :loading="loadingContent"
+                placeholder="搜索文件内容..."
+                @search="performContentSearch"
+                @clear="clearContentSearch"
+            />
+          </div>
+
+          <!-- 搜索历史标签 -->
+          <div v-if="searchHistory.length > 0 && searchType === 'filename'" class="history-bar mt-3">
+            <span class="history-label">历史:</span>
+            <v-chip
+                v-for="item in searchHistory.slice(0, 8)"
+                :key="item.id"
+                size="small"
+                closable
+                class="mr-1"
+                @click="useHistoryItem(item)"
+                @click:close="removeHistory(item)"
+            >
+              {{ item.query }}
+            </v-chip>
+          </div>
+
+          <!-- 搜索结果统计 -->
+          <v-card v-if="files.length > 0 || loading" variant="flat" class="result-stats mt-3 pa-3">
+            <template v-if="loading">
+              <v-progress-linear indeterminate color="primary"></v-progress-linear>
+            </template>
+            <template v-else-if="files.length > 0">
+              <span class="stats-text">
+                找到 {{ totalFiles }} 个文件
+                <template v-if="selectedCategory !== 'all'">
+                  （{{ getCategoryLabel(selectedCategory) }}）
+                </template>
+              </span>
+            </template>
+            <template v-else-if="hasSearched && files.length === 0">
+              <span class="stats-text text-grey">未找到匹配的文件</span>
+            </template>
+          </v-card>
+        </div>
+
+        <!-- 可滚动内容区域：搜索结果列表 -->
+        <div class="search-content">
+          <v-card variant="outlined" class="results-table mt-3">
+            <div class="table-container">
+              <v-data-table-server
+                :headers="tableHeaders"
+                :items="files"
+                :items-length="totalFiles"
+                :loading="loading"
+                :page.sync="currentPage"
+                :items-per-page.sync="pageSize"
+                density="compact"
+                hover
+                show-select
+                item-value="id"
+                @update:options="handleTableUpdate"
+                @click:row="(event: any, row: any) => handleRowClick(row.item)"
+            >
             <!-- 文件名列 -->
             <template #item.name="{ item }">
               <div class="d-flex align-center file-name-cell">
@@ -254,15 +271,16 @@
               </v-menu>
             </template>
 
-            <!-- 无数据提示 -->
-            <template #no-data>
-              <div class="pa-8 text-center text-grey">
-                <v-icon icon="mdi-file-search-outline" size="48" class="mb-3"></v-icon>
-                <p>输入关键词开始搜索</p>
-              </div>
-            </template>
-          </v-data-table-server>
-        </v-card>
+              <!-- 无数据提示 -->
+              <template #no-data>
+                <div class="pa-8 text-center text-grey">
+                  <v-icon icon="mdi-file-search-outline" size="48" class="mb-3"></v-icon>
+                  <p>输入关键词开始搜索</p>
+                </div>
+              </template>
+            </v-data-table-server>
+            </div>
+          </v-card>
 
         <!-- 分页控件 -->
         <v-pagination
@@ -287,6 +305,7 @@
             <strong>{{ Math.round(value) }}%</strong> - 索引中...
           </template>
         </v-progress-linear>
+        </div>
       </main>
 
       <!-- 右侧：预览面板 -->
@@ -324,7 +343,7 @@
     <v-snackbar
         v-model="snackbar.visible"
         :color="snackbar.color"
-        :timeout="3000"
+        :timeout="SNACKBAR_TIMEOUT"
         location="top"
     >
       {{ snackbar.message }}
@@ -341,13 +360,15 @@
 import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { searchApi } from '@/api'
 import type { SearchResult, FileCountByCategory } from '@/api/types'
-import CategorySidebar from './components/CategorySidebar/index.tsx'
+import CategoryList from '@/components/CategoryList/index.tsx'
 import SearchBox from './components/SearchBox/index.tsx'
 import FilePreviewPanel from './components/FilePreviewPanel/index.tsx'
 import FileIcon from '@/components/FileIcon/index.vue'
 import { favoritesApi } from '@/api/modules/favorites'
 import { recentApi } from '@/api/modules/favorites'
 import { CATEGORY_CONFIGS, type FileCategory } from '@/utils/fileCategory'
+import { useIndexingStore } from '@/stores/indexing'
+import { SIDEBAR_WIDTH, DEFAULT_PAGE_SIZE, PREVIEW_PANEL_WIDTH, PREVIEW_PANEL_MIN_WIDTH, PREVIEW_PANEL_MAX_WIDTH, SNACKBAR_TIMEOUT } from '@/constants/fileSearch'
 
 // ==================== 类型定义 ====================
 
@@ -374,6 +395,9 @@ interface SnackbarState {
 }
 
 // ==================== 响应式状态 ====================
+
+/** 是否显示索引进度提示 */
+const showIndexProgress = ref(true)
 
 /** 搜索类型 */
 const searchType = ref<'filename' | 'content'>('filename')
@@ -408,7 +432,7 @@ const totalFiles = ref(0)
 
 /** 分页 */
 const currentPage = ref(1)
-const pageSize = ref(50)
+const pageSize = ref(DEFAULT_PAGE_SIZE)
 const totalPages = computed(() => Math.ceil(totalFiles.value / pageSize.value))
 
 /** 是否已执行过搜索 */
@@ -513,12 +537,24 @@ async function handleCategorySelect(category: FileCategory): Promise<void> {
   currentPage.value = 1
 
   if (category === 'all') {
-    if (searchQuery.value) {
-      await performSearch()
-    }
+    await loadAllFiles()
   } else {
     await loadByCategory(category)
   }
+}
+
+/**
+ * 处理收藏夹选择
+ */
+function handleSelectFavorite(): void {
+  showMessage('收藏夹功能开发中...', 'info')
+}
+
+/**
+ * 处理最近访问选择
+ */
+function handleSelectRecent(): void {
+  showMessage('最近访问功能开发中...', 'info')
 }
 
 /**
@@ -548,6 +584,39 @@ async function loadByCategory(category: FileCategory): Promise<void> {
     }
   } catch (error) {
     console.error('[FileSearch] Failed to load by category:', error)
+    showMessage('加载失败', 'error')
+  } finally {
+    loading.value = false
+  }
+}
+
+/**
+ * 加载所有文件
+ */
+async function loadAllFiles(): Promise<void> {
+  loading.value = true
+  try {
+    const response = await searchApi.getFilesByCategory(
+      'all',
+      currentPage.value,
+      pageSize.value
+    )
+
+    if (response.success) {
+      files.value = response.files.map((f: any) => ({
+        id: f.id,
+        name: f.name,
+        path: f.path,
+        extension: f.extension,
+        size: f.size,
+        modified_time: f.modified_time,
+        created_time: f.created_time
+      }))
+      totalFiles.value = response.total
+      hasSearched.value = true
+    }
+  } catch (error) {
+    console.error('[FileSearch] Failed to load all files:', error)
     showMessage('加载失败', 'error')
   } finally {
     loading.value = false
@@ -627,12 +696,12 @@ async function performContentSearch(): Promise<void> {
 
     if (response.success) {
       files.value = response.results.map((r: any) => ({
-        id: r.file_id,
-        name: r.filename,
-        path: r.filepath,
-        extension: r.filepath.split('.').pop() || '',
-        size: 0,
-        modified_time: '',
+        id: r.id,
+        name: r.name,
+        path: r.path,
+        extension: r.extension,
+        size: r.size,
+        modified_time: r.modified_time,
         created_time: ''
       }))
       totalFiles.value = response.total
@@ -917,137 +986,41 @@ async function confirmDeleteAction(): Promise<void> {
   }
 }
 
-// ==================== 索引状态检测 ====================
+// ==================== 索引进度状态（使用全局 Store）====================
+
+const indexingStore = useIndexingStore()
 
 /**
- * 索引状态
+ * 索引状态 - 从全局 Store 获取
+ * 使用 fileCounts.all 作为 totalFiles，因为 indexingStore.totalFiles 只在索引过程中有效
  */
-const indexStatus = ref<{
-  isIndexing: boolean
-  totalFiles: number
-  indexedFiles: number
-  currentPath: string
-  lastIndexed: string | null
-}>({
-  isIndexing: false,
-  totalFiles: 0,
-  indexedFiles: 0,
-  currentPath: '',
+const indexStatus = computed(() => ({
+  isIndexing: indexingStore.isIndexing,
+  totalFiles: indexingStore.fileCounts.all,
+  indexedFiles: indexingStore.currentFile,
+  currentPath: indexingStore.currentPath,
   lastIndexed: null
-})
+}))
 
 /**
- * 检查索引状态
+ * 初始化索引进度状态
  */
-async function checkIndexStatus(): Promise<void> {
-  try {
-    // 获取文件总数
-    const counts = await searchApi.getFileCounts()
-    const totalFiles = counts.all || 0
-
-    // 获取索引进度
-    const progress = await searchApi.getIndexingProgress()
-
-    indexStatus.value = {
-      isIndexing: progress.isIndexing,
-      totalFiles: progress.totalFiles || totalFiles,
-      indexedFiles: progress.currentFile || 0,
-      currentPath: progress.currentPath || '',
-      lastIndexed: null
-    }
-
-    console.log('[FileSearch] Index status:', indexStatus.value)
-
-    // 如果没有索引过且当前没有正在索引,自动开始索引
-    if (totalFiles === 0 && !progress.isIndexing) {
-      console.log('[FileSearch] No files indexed, starting auto index...')
-      await startAutoIndex()
-    }
-  } catch (error) {
-    console.error('[FileSearch] Failed to check index status:', error)
-  }
-}
-
-/**
- * 自动开始索引
- */
-async function startAutoIndex(): Promise<void> {
-  try {
-    // 获取所有驱动器
-    const response = await fetch('http://localhost:3000/api/files/drives')
-    const data = await response.json()
-    const drives = data.success ? data.drives : ['C:', 'D:']
-
-    console.log('[FileSearch] Starting auto index for drives:', drives)
-
-    // 开始索引
-    await fetch('http://localhost:3000/api/files/index/start', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ drives })
-    })
-
-    // 开始轮询进度
-    startIndexProgressPolling()
-  } catch (error) {
-    console.error('[FileSearch] Failed to start auto index:', error)
-  }
-}
-
-/**
- * 索引进度轮询
- */
-let indexProgressInterval: ReturnType<typeof setInterval> | null = null
-
-function startIndexProgressPolling(): void {
-  if (indexProgressInterval) {
-    clearInterval(indexProgressInterval)
-  }
-
-  indexStatus.value.isIndexing = true
-
-  indexProgressInterval = setInterval(async () => {
-    try {
-      const progress = await searchApi.getIndexingProgress()
-
-      indexStatus.value = {
-        isIndexing: progress.isIndexing,
-        totalFiles: progress.totalFiles || 0,
-        indexedFiles: progress.currentFile || 0,
-        currentPath: progress.currentPath || '',
-        lastIndexed: null
-      }
-
-      // 如果索引完成
-      if (!progress.isIndexing) {
-        stopIndexProgressPolling()
-        showMessage(`索引完成!共索引 ${progress.totalFiles} 个文件`, 'success')
-        // 刷新文件计数
-        await checkIndexStatus()
-      }
-    } catch (error) {
-      console.error('[FileSearch] Index progress polling error:', error)
-    }
-  }, 1000)
-}
-
-function stopIndexProgressPolling(): void {
-  if (indexProgressInterval) {
-    clearInterval(indexProgressInterval)
-    indexProgressInterval = null
-  }
-  indexStatus.value.isIndexing = false
+async function initIndexStatus(): Promise<void> {
+  await indexingStore.initialize()
 }
 
 // ==================== 生命周期 ====================
 
 onMounted(async () => {
   await loadSearchHistory()
-  await checkIndexStatus()
+  await initIndexStatus()
+  // 默认加载全部文件
+  await loadAllFiles()
 })
 
 onUnmounted(() => {
-  stopIndexProgressPolling()
+  // 注意：不要在组件卸载时停止轮询
+  // 因为索引进度是全局状态，其他页面可能还在显示
 })
 </script>
 
@@ -1066,9 +1039,12 @@ onUnmounted(() => {
 
 .sidebar-section {
   flex-shrink: 0;
-  border-radius: 8px;
+  width: 200px;
+  height: 100%;
   overflow: hidden;
+  border-radius: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  background-color: rgba(var(--v-theme-surface), 1);
 
   @media (max-width: 959px) and (min-width: 600px) {
     position: fixed;
@@ -1087,11 +1063,24 @@ onUnmounted(() => {
 .content-section {
   flex: 1;
   min-width: 0;
-  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   padding: 0 24px;
 
   .search-type-card {
     border-radius: 8px;
+    flex-shrink: 0;
+  }
+
+  .search-header {
+    flex-shrink: 0;
+  }
+
+  .search-content {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
   }
 
   .search-area {
@@ -1127,6 +1116,11 @@ onUnmounted(() => {
 
   .results-table {
     border-radius: 8px;
+
+    .table-container {
+      height: calc(100vh - 280px);
+      overflow-y: auto;
+    }
 
     .file-name-cell {
       .file-name {

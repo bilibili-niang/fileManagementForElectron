@@ -1,0 +1,264 @@
+@import '@/styles/design-tokens.scss';
+
+/**
+ * FileShare 页面样式
+ * 使用 CSS 变量和 design tokens
+ */
+
+.file-share-container {
+  padding: 0 !important;
+  min-height: 100%;
+  position: relative;
+}
+
+.cursor-pointer {
+  cursor: pointer;
+}
+
+.toolbar-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: $spacing-sm;
+  padding: $spacing-md $spacing-lg;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: $spacing-xs;
+  flex-wrap: wrap;
+}
+
+.folder-path {
+  padding-top: 0 !important;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.file-list-mobile {
+  padding: 0;
+}
+
+.file-card {
+  .file-info {
+    max-width: calc(100% - 100px);
+  }
+
+  .file-actions {
+    gap: 0;
+  }
+}
+
+.qrcode-container {
+  display: flex;
+  justify-content: center;
+  min-height: 180px;
+  align-items: center;
+
+  img {
+    border-radius: $radius-md;
+    box-shadow: $shadow-sm;
+  }
+}
+
+.qrcode-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 180px;
+  height: 180px;
+}
+
+/**
+ * 上传按钮拖拽状态
+ */
+.upload-btn {
+  transition: all $duration-fast $ease-default;
+  position: relative;
+  overflow: hidden;
+
+  &.drag-over {
+    background-color: rgba(var(--v-theme-primary), 0.15) !important;
+    border-color: rgb(var(--v-theme-primary)) !important;
+    border-width: 2px !important;
+    transform: scale(1.05);
+    box-shadow: 0 4px 12px rgba(var(--v-theme-primary), 0.3);
+
+    &::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: linear-gradient(
+        45deg,
+        transparent 30%,
+        rgba(var(--v-theme-primary), 0.1) 50%,
+        transparent 70%
+      );
+      animation: shimmer 1.5s infinite;
+    }
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/**
+ * 底部扫描进度条
+ */
+.scan-progress-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: $z-index-fixed;
+  background: rgba(var(--v-theme-surface), 0.98);
+  backdrop-filter: blur(10px);
+  border-top: 1px solid $border-color;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.1);
+
+  .progress-container {
+    padding: $spacing-xs $spacing-lg;
+  }
+
+  &:hover {
+    .progress-container {
+      padding-bottom: $spacing-sm;
+    }
+  }
+}
+
+/**
+ * Hover 详情面板
+ */
+.scan-detail-panel {
+  background: rgba(var(--v-theme-surface), 1);
+  border-top: 1px solid $divider-color;
+  padding: $spacing-md $spacing-lg;
+
+  .detail-content {
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+
+  .detail-header {
+    display: flex;
+    align-items: center;
+  }
+
+  .detail-stats {
+    display: flex;
+    align-items: center;
+    gap: $spacing-lg;
+
+    .stat-item {
+      display: flex;
+      align-items: center;
+      gap: $spacing-xs;
+
+      .stat-label {
+        color: $text-color-secondary;
+        font-size: $font-size-sm;
+      }
+
+      .stat-value {
+        font-weight: $font-weight-semibold;
+        font-size: $font-size-base;
+      }
+    }
+
+    .stat-divider {
+      width: 1px;
+      height: 16px;
+      background: $divider-color;
+    }
+  }
+
+  .current-path {
+    max-width: 100%;
+    display: flex;
+    align-items: center;
+  }
+}
+
+/**
+ * 动画效果
+ */
+.slide-up-enter-active,
+.slide-up-leave-active {
+  transition: all $duration-normal $ease-out;
+}
+
+.slide-up-enter-from {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.slide-up-leave-to {
+  transform: translateY(100%);
+  opacity: 0;
+}
+
+.fade-enter-active,
+.fade-leave-active {
+  transition: all $duration-fast $ease-default;
+}
+
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(-5px);
+}
+
+// 移动端适配
+@media (max-width: $breakpoint-sm) {
+  .file-share-container {
+    padding: $spacing-sm !important;
+  }
+
+  .toolbar-title {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: $spacing-md;
+  }
+
+  .toolbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .scan-progress-bar {
+    .progress-container {
+      padding: $spacing-xs $spacing-md;
+    }
+
+    .scan-detail-panel {
+      padding: $spacing-sm $spacing-md;
+
+      .detail-stats {
+        flex-wrap: wrap;
+        gap: $spacing-sm;
+
+        .stat-item {
+          font-size: $font-size-xs;
+
+          .stat-value {
+            font-size: $font-size-sm;
+          }
+        }
+      }
+    }
+  }
+}

@@ -4,16 +4,11 @@
   "description": "Backend server for Super Utils",
   "main": "dist/index.js",
   "scripts": {
-    "========== 开发命令 ==========": "",
     "dev": "tsx watch src/index.ts",
     "dev:quiet": "tsx watch src/index.ts 2>nul",
-    "========== 构建命令 ==========": "",
     "build": "tsc",
-    "========== 启动命令 ==========": "",
     "start": "node dist/index.js",
     "start:quiet": "node dist/index.js 2>nul",
-    "========== 测试命令 ==========": "",
-    "test": "tsx src/test/runTests.ts",
     "test:api": "tsx src/test/runTests.ts"
   },
   "dependencies": {

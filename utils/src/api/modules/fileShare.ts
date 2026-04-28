@@ -1,11 +1,44 @@
 import { request } from '../client'
 
+/**
+ * 共享项类型
+ */
+export type ShareItemType = 'file' | 'text'
+
+/**
+ * 共享文件接口
+ */
 export interface ShareFile {
   name: string
+  displayName: string
+  type: ShareItemType
   size: number
   modifiedTime: string
   createdTime: string
   extension: string
+  content?: string
+}
+
+/**
+ * 文本记录接口
+ */
+export interface TextRecord {
+  id: string
+  name: string
+  displayName: string
+  type: 'text'
+  content: string
+  size: number
+  createdTime: string
+  modifiedTime: string
+}
+
+/**
+ * 创建文本记录请求
+ */
+export interface CreateTextRecordRequest {
+  displayName: string
+  content: string
 }
 
 export interface FileListResponse {
@@ -129,5 +162,47 @@ export const fileShareApi = {
     const isDev = (import.meta as any).env?.DEV
     const API_BASE_URL = isDev ? '' : ((import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:3000')
     return `${API_BASE_URL}/api/file-share/download/${encodeURIComponent(filename)}`
+  },
+
+  /**
+   * 获取文本记录列表
+   */
+  async getTextRecords(): Promise<{ success: boolean; records: TextRecord[] }> {
+    return request({
+      path: '/api/file-share/text-records',
+      method: 'GET'
+    })
+  },
+
+  /**
+   * 创建文本记录
+   */
+  async createTextRecord(data: CreateTextRecordRequest): Promise<{ success: boolean; record: TextRecord }> {
+    return request({
+      path: '/api/file-share/text-records',
+      method: 'POST',
+      body: data
+    })
+  },
+
+  /**
+   * 更新文本记录
+   */
+  async updateTextRecord(id: string, data: CreateTextRecordRequest): Promise<{ success: boolean }> {
+    return request({
+      path: `/api/file-share/text-records/${encodeURIComponent(id)}`,
+      method: 'PUT',
+      body: data
+    })
+  },
+
+  /**
+   * 删除文本记录
+   */
+  async deleteTextRecord(id: string): Promise<{ success: boolean }> {
+    return request({
+      path: `/api/file-share/text-records/${encodeURIComponent(id)}`,
+      method: 'DELETE'
+    })
   }
 }

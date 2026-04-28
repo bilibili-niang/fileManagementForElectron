@@ -47,14 +47,11 @@ export class DatabaseService {
       if (fs.existsSync(this.dbPath)) {
         const fileBuffer = fs.readFileSync(this.dbPath);
         this.db = new this.SQL.Database(fileBuffer);
-        console.log('[DatabaseService] Loaded existing database:', this.dbPath);
       } else {
         // 创建新数据库并初始化表结构
         const { initializeDatabase } = await import('./databaseInit');
         this.db = await initializeDatabase();
       }
-      
-      console.log('[DatabaseService] Database initialized successfully');
       
     } catch (error) {
       console.error('[DatabaseService] Failed to initialize database:', error);
@@ -169,10 +166,13 @@ export class DatabaseService {
     const total = countResult[0]?.values[0][0] || 0;
 
     return {
+      success: true,
       files,
+      total,
+      page,
+      pageSize,
       totalPages: Math.ceil(total / pageSize),
-      currentPage: page,
-      total
+      currentPage: page
     };
   }
 
@@ -201,6 +201,203 @@ export class DatabaseService {
       is_readonly: Boolean(row[10]),
       is_system: Boolean(row[11]),
       attributes: row[12]
+    };
+  }
+
+  /**
+   * 添加文件（用于 FileIndexer）
+   * @param file - 文件信息
+   * @returns 新插入文件的 ID
+   */
+  async addFile(file: {
+    name: string;
+    path: string;
+    extension: string;
+    size: number;
+    created_time: string;
+    modified_time: string;
+    accessed_time: string;
+    hash: string;
+    is_hidden: boolean;
+    is_readonly: boolean;
+    is_system: boolean;
+    attributes: string;
+  }): Promise<number> {
+    await this.ready();
+
+    this.db.run(
+      `INSERT INTO files
+       (name, path, extension, size, created_time, modified_time, accessed_time, hash, is_hidden, is_readonly, is_system, attributes)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        file.name,
+        file.path,
+        file.extension,
+        file.size,
+        file.created_time,
+        file.modified_time,
+        file.accessed_time,
+        file.hash,
+        file.is_hidden ? 1 : 0,
+        file.is_readonly ? 1 : 0,
+        file.is_system ? 1 : 0,
+        file.attributes
+      ]
+    );
+
+    // 获取插入的 ID
+    const result = this.db.exec('SELECT last_insert_rowid()');
+    const fileId = result[0]?.values[0][0];
+
+    this.saveDatabase();
+    return fileId;
+  }
+
+  /**
+   * 获取所有已索引的文件路径（用于增量索引）
+   * @returns 文件路径列表，包含 id, path, name, modified_time
+   */
+  async getAllFilePaths(): Promise<Array<{ id: number; path: string; name: string; modified_time: string }>> {
+    await this.ready();
+
+    const result = this.db.exec(
+      'SELECT id, path, name, modified_time FROM files'
+    );
+
+    return result[0]?.values.map((row: any[]) => ({
+      id: row[0],
+      path: row[1],
+      name: row[2],
+      modified_time: row[3]
+    })) || [];
+  }
+
+  /**
+   * 获取启用的排除规则
+   * @returns 启用的排除规则列表
+   */
+  async getEnabledExcludeRules(): Promise<Array<{
+    rule_type: string;
+    pattern: string;
+    is_regex: boolean;
+  }>> {
+    await this.ready();
+
+    const result = this.db.exec(
+      'SELECT rule_type, pattern, is_regex FROM index_exclude_rules WHERE is_enabled = 1'
+    );
+
+    return result[0]?.values.map((row: any[]) => ({
+      rule_type: row[0],
+      pattern: row[1],
+      is_regex: Boolean(row[2])
+    })) || [];
+  }
+
+  /**
+   * 检查文件是否已有内容索引
+   * @param fileId - 文件 ID
+   * @returns 是否已有内容索引
+   */
+  async hasContentIndex(fileId: number): Promise<boolean> {
+    await this.ready();
+
+    const result = this.db.exec(
+      'SELECT COUNT(*) FROM file_contents WHERE file_id = ?',
+      [fileId]
+    );
+
+    return (result[0]?.values[0][0] || 0) > 0;
+  }
+
+  /**
+   * 保存文件内容索引
+   * @param fileId - 文件 ID
+   * @param content - 文件内容
+   * @param preview - 内容预览
+   */
+  async saveFileContent(fileId: number, content: string, preview: string): Promise<void> {
+    await this.ready();
+
+    this.db.run(
+      `INSERT OR REPLACE INTO file_contents (file_id, content, content_preview, indexed_at)
+       VALUES (?, ?, ?, CURRENT_TIMESTAMP)`,
+      [fileId, content, preview]
+    );
+
+    this.saveDatabase();
+  }
+
+  /**
+   * 搜索文件内容
+   * @param keyword - 搜索关键词
+   * @param page - 页码
+   * @param pageSize - 每页数量
+   * @returns 搜索结果
+   */
+  async searchFileContent(
+    keyword: string,
+    page: number = 1,
+    pageSize: number = 50
+  ): Promise<{
+    results: Array<{
+      id: number;
+      name: string;
+      path: string;
+      extension: string;
+      size: number;
+      modified_time: string;
+      contentPreview: string;
+      matchCount: number;
+    }>;
+    totalPages: number;
+    currentPage: number;
+  }> {
+    await this.ready();
+
+    const offset = (page - 1) * pageSize;
+
+    // 搜索匹配的文件
+    const searchResult = this.db.exec(
+      `SELECT f.id, f.name, f.path, f.extension, f.size, f.modified_time,
+              fc.content_preview,
+              (LENGTH(fc.content) - LENGTH(REPLACE(LOWER(fc.content), LOWER(?), ''))) / LENGTH(?) as match_count
+       FROM files f
+       JOIN file_contents fc ON f.id = fc.file_id
+       WHERE LOWER(fc.content) LIKE LOWER(?)
+       ORDER BY match_count DESC, f.modified_time DESC
+       LIMIT ? OFFSET ?`,
+      [keyword, keyword, `%${keyword}%`, pageSize, offset]
+    );
+
+    // 获取总数
+    const countResult = this.db.exec(
+      `SELECT COUNT(*) FROM file_contents fc
+       JOIN files f ON f.id = fc.file_id
+       WHERE LOWER(fc.content) LIKE LOWER(?)`,
+      [`%${keyword}%`]
+    );
+
+    const total = countResult[0]?.values[0][0] || 0;
+    const totalPages = Math.ceil(total / pageSize);
+
+    const results = searchResult[0]?.values.map((row: any) => ({
+      id: row[0],
+      name: row[1],
+      path: row[2],
+      extension: row[3],
+      size: row[4],
+      modified_time: row[5],
+      contentPreview: row[6] || '',
+      matchCount: row[7] || 0
+    })) || [];
+
+    return {
+      success: true,
+      results,
+      total,
+      totalPages,
+      currentPage: page
     };
   }
 
@@ -1118,9 +1315,41 @@ export class DatabaseService {
   async getFilesByCategory(category: string, page: number, pageSize: number): Promise<SearchResult> {
     await this.ready();
     
+    const offset = (page - 1) * pageSize;
+    
+    /**
+     * 当分类为 all 时，返回所有文件
+     */
+    if (category === 'all') {
+      const countResult = this.db.exec(
+        'SELECT COUNT(*) as total FROM files'
+      );
+      
+      const total = countResult[0]?.values[0][0] || 0;
+      
+      const result = this.db.exec(
+        `SELECT id, name, path, extension, size, modified_time, created_time 
+         FROM files 
+         ORDER BY modified_time DESC 
+         LIMIT ? OFFSET ?`,
+        [pageSize, offset]
+      );
+      
+      const files = result[0] ? result[0].values.map((row: any[]) => ({
+        id: row[0],
+        name: row[1],
+        path: row[2],
+        extension: row[3],
+        size: row[4],
+        modified_time: row[5],
+        created_time: row[6]
+      })) : [];
+      
+      return { success: true, files, total, page, pageSize };
+    }
+    
     const extensions = this.getCategoryExtensions(category);
     
-    const offset = (page - 1) * pageSize;
     const placeholders = extensions.map(() => '?').join(',');
     
     const countResult = this.db.exec(
@@ -1154,29 +1383,30 @@ export class DatabaseService {
 
   /**
    * 获取各分类的文件数量统计
+   * 返回的字段名与前端保持一致（使用单数形式）
    */
   async getFileCounts(): Promise<FileCounts> {
     await this.ready();
-    
+
     const categories = [
-      { key: 'images', exts: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico'] },
-      { key: 'videos', exts: ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'] },
+      { key: 'image', exts: ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp', 'svg', 'ico'] },
+      { key: 'video', exts: ['mp4', 'avi', 'mkv', 'mov', 'wmv', 'flv', 'webm'] },
       { key: 'audio', exts: ['mp3', 'wav', 'flac', 'aac', 'ogg', 'wma', 'm4a'] },
-      { key: 'documents', exts: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'] },
-      { key: 'code', exts: ['js', 'ts', 'vue', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'go', 'rs'] },
-      { key: 'archives', exts: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'] },
-      { key: 'executables', exts: ['exe', 'msi', 'dmg', 'pkg', 'deb', 'rpm', 'appimage'] }
+      { key: 'document', exts: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'] },
+      { key: 'code', exts: ['js', 'ts', 'vue', 'jsx', 'tsx', 'py', 'java', 'c', 'cpp', 'go', 'rs', 'rb', 'php', 'swift', 'kt', 'html', 'css', 'scss', 'json', 'xml', 'yaml', 'yml'] },
+      { key: 'archive', exts: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'] },
+      { key: 'executable', exts: ['exe', 'msi', 'dmg', 'pkg', 'deb', 'rpm', 'appimage'] }
     ];
-    
+
     const counts: FileCounts = {
       all: 0,
-      images: 0,
-      videos: 0,
+      image: 0,
+      video: 0,
       audio: 0,
-      documents: 0,
+      document: 0,
       code: 0,
-      archives: 0,
-      executables: 0,
+      archive: 0,
+      executable: 0,
       other: 0
     };
     
@@ -1204,7 +1434,7 @@ export class DatabaseService {
       knownExts
     );
     counts.other = otherResult[0]?.values[0][0] || 0;
-    
+
     return counts;
   }
 
@@ -1221,7 +1451,29 @@ export class DatabaseService {
       archive: ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'],
       executable: ['exe', 'msi', 'dmg', 'pkg', 'deb', 'rpm', 'appimage']
     };
-    
+
     return categoryMap[category] || [];
+  }
+
+  /**
+   * 清除所有数据（用于强制重新索引）
+   * 删除 files 和 file_contents 表中的所有数据
+   */
+  async clearAllData(): Promise<void> {
+    await this.ready();
+
+    try {
+      // 删除文件内容索引
+      this.db.run('DELETE FROM file_contents');
+
+      // 删除文件索引
+      this.db.run('DELETE FROM files');
+
+      // 保存数据库
+      this.saveDatabase();
+    } catch (error) {
+      console.error('[DatabaseService] Failed to clear all data:', error);
+      throw error;
+    }
   }
 }

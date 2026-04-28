@@ -137,7 +137,7 @@ $shadow-xl: 0 20px 25px rgba(0, 0, 0, 0.1),
            0 10px 10px rgba(0, 0, 0, 0.04);           // 超大阴影(弹窗)
 
 // 功能性阴影
-$shadow-focus: 0 0 0 3px rgba($color-primary-rgb, 0.3);  // 聚焦环
+$shadow-focus: 0 0 0 3px rgba($color-primary, 0.3);  // 聚焦环
 $shadow-inset: inset 0 2px 4px rgba(0, 0, 0, 0.1);     // 内阴影
 
 // ==================== 图标尺寸系统(Icon Sizes) ====================

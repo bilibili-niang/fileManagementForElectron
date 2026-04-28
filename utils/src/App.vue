@@ -112,32 +112,32 @@
 
     <DatabaseConfigDialog v-model="showConfigDialog"/>
     <FileEditorDialog
-        v-model="showFileEditor"
-        :file-path="currentFile.path"
-        :file-name="currentFile.name"
-        :file-content="currentFile.content"
-        @save="handleFileSave"
+      v-model="showFileEditor"
+      :file-path="currentFile.path"
+      :file-name="currentFile.name"
+      :file-content="currentFile.content"
+      @save="handleFileSave"
     />
     <ImagePreviewDialog
-        v-model="showImagePreview"
-        :file-path="currentFile.path"
-        :file-name="currentFile.name"
+      v-model="showImagePreview"
+      :file-path="currentFile.path"
+      :file-name="currentFile.name"
     />
     <DocxPreviewDialog
-        v-model="showDocxPreview"
-        :file-path="currentFile.path"
-        :file-name="currentFile.name"
+      v-model="showDocxPreview"
+      :file-path="currentFile.path"
+      :file-name="currentFile.name"
     />
     <MediaPlayerDialog
-        v-model="showMediaPlayer"
-        :file-path="currentFile.path"
-        :file-name="currentFile.name"
-        :file-size="currentFile.size"
+      v-model="showMediaPlayer"
+      :file-path="currentFile.path"
+      :file-name="currentFile.name"
+      :file-size="currentFile.size"
     />
     <PdfPreviewDialog
-        v-model="showPdfPreview"
-        :file-path="currentFile.path"
-        :file-name="currentFile.name"
+      v-model="showPdfPreview"
+      :file-path="currentFile.path"
+      :file-name="currentFile.name"
     />
 
     <v-snackbar
@@ -153,19 +153,19 @@
       </div>
       <template v-slot:actions>
         <v-btn
-            variant="text"
-            icon="mdi-close"
-            @click="snackbar.show = false"
+          variant="text"
+          icon="mdi-close"
+          @click="snackbar.show = false"
         ></v-btn>
       </template>
     </v-snackbar>
 
-    <DevToolsButton v-if="isElectronEnv || isDev" />
+    <DevToolsButton v-if="isElectronEnv || isDev"/>
   </v-app>
 </template>
 
 <script setup lang="ts">
-import { onMounted, provide, ref, computed } from 'vue'
+import {onMounted, provide, ref} from 'vue'
 import FileSearch from '@/views/FileSearch/index.vue'
 import FileCategory from '@/views/FileCategory/index.vue'
 import Settings from '@/views/Settings/index.vue'
@@ -176,7 +176,7 @@ import Calculator from '@/views/Calculator/index.vue'
 import ClipboardHistory from '@/views/ClipboardHistory/index.vue'
 import PortKiller from '@/views/PortKiller/index.vue'
 import ApiDocs from '@/views/ApiDocs/index.vue'
-import FileShare from '@/views/FileShare/index.vue'
+import FileShare from '@/views/FileShare'
 import DatabaseConfigDialog from '@/components/DatabaseConfigDialog/index.vue'
 import FileEditorDialog from '@/components/FileEditorDialog/index.vue'
 import ImagePreviewDialog from '@/components/ImagePreviewDialog/index.vue'
@@ -186,14 +186,14 @@ import PdfPreviewDialog from '@/components/PdfPreviewDialog/index.vue'
 import WindowTitleBar from '@/components/WindowTitleBar/index.vue'
 import WelcomeWizard from '@/components/WelcomeWizard/index.vue'
 import DevToolsButton from '@/components/DevToolsButton/index.vue'
-import { useConfigStore } from '@/stores/config'
-import { configApi } from '@/api'
-import { useFilePreview } from '@/composables/useFilePreview'
-import { useTabManager } from '@/composables/useTabManager'
-import { useSnackbar } from '@/composables/useSnackbar'
-import { useThemeManager } from '@/composables/useThemeManager'
-import { useWelcomeWizard } from '@/composables/useWelcomeWizard'
-import { isElectron } from '@/utils/env'
+import {useConfigStore} from '@/stores/config'
+import {configApi} from '@/api'
+import {useFilePreview} from '@/composables/useFilePreview'
+import {useTabManager} from '@/composables/useTabManager'
+import {useSnackbar} from '@/composables/useSnackbar'
+import {useThemeManager} from '@/composables/useThemeManager'
+import {useWelcomeWizard} from '@/composables/useWelcomeWizard'
+import {isElectron} from '@/utils/env'
 
 const configStore = useConfigStore()
 
@@ -207,12 +207,10 @@ const isElectronEnv = isElectron()
  */
 const isDev = (import.meta as any).env?.DEV
 
-console.log('[App] isElectron:', isElectronEnv)
-
-const { activeTab, loadSavedTab } = useTabManager()
-const { snackbar, showSnackbar } = useSnackbar()
-const { themeStore, initTheme } = useThemeManager()
-const { showWelcomeWizard, checkFirstTime, onWizardComplete } = useWelcomeWizard()
+const {activeTab, loadSavedTab} = useTabManager()
+const {snackbar, showSnackbar} = useSnackbar()
+const {themeStore, initTheme} = useThemeManager()
+const {showWelcomeWizard, checkFirstTime, onWizardComplete} = useWelcomeWizard()
 const {
   showFileEditor,
   showImagePreview,
@@ -231,17 +229,17 @@ const {
 const showConfigDialog = ref(false)
 
 const tabOptions = [
-  { value: 'qrcode', label: '二维码生成', icon: 'mdi-qrcode' },
-  { value: 'category', label: '分类浏览', icon: 'mdi-folder' },
-  { value: 'search', label: '文件搜索', icon: 'mdi-magnify' },
-  { value: 'fileShare', label: '文件共享', icon: 'mdi-folder-sync' },
-  { value: 'api-docs', label: 'API 文档', icon: 'mdi-api' },
-  { value: 'network', label: '网络模拟', icon: 'mdi-lan' },
-  { value: 'countdown', label: '倒计时', icon: 'mdi-timer' },
-  { value: 'calculator', label: '计算器', icon: 'mdi-calculator' },
-  { value: 'clipboard', label: '粘贴板', icon: 'mdi-clipboard' },
-  { value: 'portkiller', label: '端口管理', icon: 'mdi-lan-remove' },
-  { value: 'settings', label: '设置', icon: 'mdi-cog' }
+  {value: 'qrcode', label: '二维码生成', icon: 'mdi-qrcode'},
+  {value: 'category', label: '分类浏览', icon: 'mdi-folder'},
+  {value: 'search', label: '文件搜索', icon: 'mdi-magnify'},
+  {value: 'fileShare', label: '文件共享', icon: 'mdi-folder-sync'},
+  {value: 'api-docs', label: 'API 文档', icon: 'mdi-api'},
+  {value: 'network', label: '网络模拟', icon: 'mdi-lan'},
+  {value: 'countdown', label: '倒计时', icon: 'mdi-timer'},
+  {value: 'calculator', label: '计算器', icon: 'mdi-calculator'},
+  {value: 'clipboard', label: '粘贴板', icon: 'mdi-clipboard'},
+  {value: 'portkiller', label: '端口管理', icon: 'mdi-lan-remove'},
+  {value: 'settings', label: '设置', icon: 'mdi-cog'}
 ]
 
 function getActiveTabLabel() {
@@ -265,8 +263,7 @@ onMounted(async () => {
   await initTheme()
 
   try {
-    const health = await configApi.healthCheck()
-    console.log('后端服务状态:', health)
+    await configApi.healthCheck()
   } catch (error) {
     console.error('后端服务不可用:', error)
     showSnackbar('后端服务未启动，请运行 npm run server', 'warning')

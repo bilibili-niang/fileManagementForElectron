@@ -27,13 +27,13 @@ export interface SearchResult {
 
 export interface FileCounts {
   all: number;
-  images: number;
-  documents: number;
+  image: number;
+  document: number;
   code: number;
-  videos: number;
+  video: number;
   audio: number;
-  archives: number;
-  executables: number;
+  archive: number;
+  executable: number;
   other: number;
 }
 

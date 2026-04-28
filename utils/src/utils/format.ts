@@ -46,3 +46,21 @@ export function formatTime(dateString: string): string {
 
   return formatDate(dateString)
 }
+
+/**
+ * 格式化剩余时间
+ * @param seconds - 剩余秒数
+ * @returns 格式化后的字符串,如 "3分25秒"
+ */
+export function formatRemainingTime(seconds: number): string {
+  if (seconds <= 0) return ''
+  if (seconds < 60) return `${seconds}秒`
+  if (seconds < 3600) {
+    const minutes = Math.floor(seconds / 60)
+    const secs = seconds % 60
+    return `${minutes}分${secs}秒`
+  }
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  return `${hours}小时${minutes}分`
+}

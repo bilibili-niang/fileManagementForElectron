@@ -1,6 +1,14 @@
-import { defineComponent, ref, computed, onMounted, PropType, h } from 'vue'
-import { searchApi } from '@/api'
-import { CATEGORY_CONFIGS, type FileCategory } from '@/utils/fileCategory'
+import {
+  defineComponent,
+  computed,
+  PropType,
+  watch
+} from 'vue'
+import {
+  CATEGORY_CONFIGS,
+  type FileCategory
+} from '@/utils/fileCategory'
+import {useIndexingStore} from '@/stores/indexing'
 
 /**
  * 分类项接口
@@ -24,7 +32,7 @@ interface CategoryItem {
  */
 export default defineComponent({
   name: 'CategorySidebar',
-
+  
   props: {
     modelValue: {
       type: String as PropType<FileCategory>,
@@ -35,26 +43,40 @@ export default defineComponent({
       default: true
     }
   },
-
+  
   emits: ['update:modelValue', 'select', 'select-favorite', 'select-recent'],
-
-  setup(props, { emit }) {
+  
+  setup(props, {emit}) {
     /**
-     * 各分类的文件数量统计
+     * 使用全局索引进度 Store
      */
-    const counts = ref<Record<string, number>>({})
-
+    const indexingStore = useIndexingStore()
+    
     /**
-     * 加载状态
+     * 各分类的文件数量统计 - 从 Store 获取
      */
-    const loading = ref(false)
-
+    const counts = computed(() => indexingStore.fileCounts)
+    
     /**
      * 构建分类列表
+     * 注意：Store 中使用复数形式（images, videos），但 CATEGORY_CONFIGS 使用单数形式（image, video）
+     * 需要进行映射转换
      */
     const categories = computed<CategoryItem[]>(() => {
-      const allCount = Object.values(counts.value).reduce((sum, c) => sum + c, 0)
-
+      // 使用后端返回的 all 作为总数，而不是累加各个分类
+      const allCount = counts.value.all || 0
+      
+      // 单数到复数的映射
+      const keyMapping: Record<string, string> = {
+        'image': 'images',
+        'video': 'videos',
+        'audio': 'audio',
+        'document': 'documents',
+        'code': 'code',
+        'archive': 'archives',
+        'executable': 'executables'
+      }
+      
       return [
         {
           key: 'all',
@@ -67,40 +89,12 @@ export default defineComponent({
           key: config.key,
           label: config.label,
           icon: config.icon,
-          count: counts.value[config.key] || 0,
+          count: counts.value[keyMapping[config.key] as keyof typeof counts.value] || 0,
           color: config.color
         }))
       ]
     })
-
-    /**
-     * 加载分类统计数据
-     */
-    async function loadCounts(): Promise<void> {
-      loading.value = true
-      try {
-        const response = await searchApi.getFileCounts()
-        if (response && (response as any).success) {
-          const data = response as any
-          counts.value = {
-            all: data.all || 0,
-            image: data.images || 0,
-            video: data.videos || 0,
-            audio: data.audio || 0,
-            document: data.documents || 0,
-            code: data.code || 0,
-            archive: data.archives || 0,
-            executable: data.executables || 0,
-            other: data.other || 0
-          }
-        }
-      } catch (error) {
-        console.error('[CategorySidebar] Failed to load counts:', error)
-      } finally {
-        loading.value = false
-      }
-    }
-
+    
     /**
      * 处理分类点击
      */
@@ -108,11 +102,14 @@ export default defineComponent({
       emit('update:modelValue', category)
       emit('select', category)
     }
-
-    onMounted(() => {
-      loadCounts()
-    })
-
+    
+    /**
+     * 监听 Store 中的文件统计变化
+     */
+    watch(() => indexingStore.fileCounts, (newCounts) => {
+      console.log('[CategorySidebar] File counts updated from store:', newCounts)
+    }, {immediate: true})
+    
     return () => (
       <v-list
         density="compact"
@@ -134,11 +131,12 @@ export default defineComponent({
                   icon={item.icon}
                   size="20"
                   color={props.modelValue === item.key ? 'primary' : undefined}
-                  style={{ color: props.modelValue === item.key ? undefined : item.color }}
+                  style={{color: props.modelValue === item.key ? undefined : item.color}}
                 />
               ),
               default: () => (
-                <v-list-item-title class="category-label">
+                <v-list-item-title
+                  class="category-label">
                   {item.label}
                 </v-list-item-title>
               ),
@@ -155,11 +153,11 @@ export default defineComponent({
             }}
           </v-list-item>
         ))}
-
+        
         {/* 分隔线 */}
         {props.showExtraItems && (
           <>
-            <v-divider class="my-2" />
+            <v-divider class="my-2"/>
             
             {/* 收藏夹 */}
             <v-list-item
@@ -168,16 +166,19 @@ export default defineComponent({
             >
               {{
                 prepend: () => (
-                  <v-icon icon="mdi-star-outline" size="20" color="#FFB300" />
+                  <v-icon icon="mdi-star-outline"
+                          size="20"
+                          color="#FFB300"/>
                 ),
                 default: () => (
-                  <v-list-item-title class="category-label">
+                  <v-list-item-title
+                    class="category-label">
                     收藏夹
                   </v-list-item-title>
                 )
               }}
             </v-list-item>
-
+            
             {/* 最近访问 */}
             <v-list-item
               onClick={() => emit('select-recent', null)}
@@ -185,10 +186,13 @@ export default defineComponent({
             >
               {{
                 prepend: () => (
-                  <v-icon icon="mdi-clock-outline" size="20" color="#757575" />
+                  <v-icon icon="mdi-clock-outline"
+                          size="20"
+                          color="#757575"/>
                 ),
                 default: () => (
-                  <v-list-item-title class="category-label">
+                  <v-list-item-title
+                    class="category-label">
                     最近访问
                   </v-list-item-title>
                 )

@@ -67,7 +67,6 @@ export class FileIndexer {
     this.contentIndexer = new ContentIndexer();
     // 限制并发数，避免数据库连接过多
     this.concurrency = Math.min(4, os.cpus().length);
-    console.log(`FileIndexer initialized with concurrency: ${this.concurrency}`);
   }
 
   // 开始索引
@@ -93,8 +92,6 @@ export class FileIndexer {
     this.indexedFileIds.clear();
     this.indexedFileModifiedTimes.clear();
 
-    console.log('Starting file indexing for drives:', drives);
-    console.log('Options:', options);
 
     try {
       // 加载排除规则
@@ -106,7 +103,6 @@ export class FileIndexer {
       }
 
       // 直接扫描并索引文件，边扫描边处理
-      console.log('Scanning and indexing files...');
       let totalFilesFound = 0;
       for (const drive of drives) {
         if (!this.isIndexing) break;
@@ -502,10 +498,8 @@ export class FileIndexer {
           console.log(`[FileIndexer] File ${filePath} hasContentIndex: ${hasContent}`);
           
           if (!hasContent) {
-            console.log(`[FileIndexer] Starting content indexing for: ${filePath}`);
             await this.contentIndexer.indexFileContent(fileId, filePath);
           } else {
-            console.log(`[FileIndexer] Skipping content indexing (already indexed): ${filePath}`);
           }
         } catch (contentError) {
           console.warn(`[FileIndexer] Failed to index content for ${filePath}:`, contentError);

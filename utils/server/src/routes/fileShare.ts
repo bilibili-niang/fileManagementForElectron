@@ -28,6 +28,20 @@ const isPathSafe = (filePath: string, shareDir: string): boolean => {
          resolvedPath === resolvedShareDir;
 };
 
+/**
+ * 修复中文文件名乱码问题
+ * multer 默认使用 Latin-1 编码，需要将 Buffer 转换为 UTF-8
+ */
+const fixFileNameEncoding = (fileName: string): string => {
+  try {
+    // 将 Latin-1 编码的字符串转换为 Buffer，再用 UTF-8 解码
+    const buffer = Buffer.from(fileName, 'latin1');
+    return buffer.toString('utf8');
+  } catch {
+    return fileName;
+  }
+};
+
 // 配置 multer 上传
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -35,8 +49,10 @@ const storage = multer.diskStorage({
     cb(null, shareDir);
   },
   filename: (req, file, cb) => {
+    // 修复中文文件名乱码
+    const fixedName = fixFileNameEncoding(file.originalname);
     // 保留原始文件名，清理特殊字符，避免覆盖
-    const sanitizedName = sanitizeFileName(path.basename(file.originalname));
+    const sanitizedName = sanitizeFileName(path.basename(fixedName));
     const ext = path.extname(sanitizedName);
     const nameWithoutExt = path.basename(sanitizedName, ext) || 'file';
 
@@ -59,31 +75,45 @@ const upload = multer({ storage });
 router.get('/list', async (req, res) => {
   try {
     const shareDir = getShareFolder();
-    
+
     if (!fs.existsSync(shareDir)) {
       return res.json({ success: true, files: [] });
     }
-    
+
     const files = fs.readdirSync(shareDir, { withFileTypes: true });
-    
+
     const fileList = files
-      .filter(dirent => dirent.isFile())
+      .filter(dirent => dirent.isFile() && !dirent.name.startsWith('.') && dirent.name !== '.text-records.json')
       .map(dirent => {
         const filePath = path.join(shareDir, dirent.name);
         const stats = fs.statSync(filePath);
         return {
           name: dirent.name,
+          displayName: dirent.name,
+          type: 'file',
           size: stats.size,
           modifiedTime: stats.mtime.toISOString(),
           createdTime: stats.birthtime.toISOString(),
           extension: path.extname(dirent.name).toLowerCase().slice(1) || ''
         };
       });
-    
-    // 按修改时间倒序排列
-    fileList.sort((a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime());
-    
-    res.json({ success: true, files: fileList, folder: shareDir });
+
+    // 获取文本记录列表
+    const textRecords = readTextRecords();
+
+    // 合并并排序（按修改时间倒序）
+    const allItems = [...fileList, ...textRecords].sort(
+      (a, b) => new Date(b.modifiedTime).getTime() - new Date(a.modifiedTime).getTime()
+    );
+
+    res.json({
+      success: true,
+      files: allItems,
+      folder: shareDir,
+      // 规范的数据结构，供 SuperTable 组件使用
+      data: allItems,
+      total: allItems.length
+    });
   } catch (error) {
     console.error('Get file list error:', error);
     res.status(500).json({ success: false, error: 'Failed to get file list' });
@@ -155,6 +185,137 @@ router.delete('/delete/:filename', async (req, res) => {
   } catch (error) {
     console.error('Delete file error:', error);
     res.status(500).json({ success: false, error: 'Failed to delete file' });
+  }
+});
+
+/**
+ * ==================== 文本记录功能 ====================
+ */
+
+/**
+ * 文本记录存储文件路径
+ */
+const getTextRecordsPath = (): string => {
+  const shareDir = getShareFolder();
+  return path.join(shareDir, '.text-records.json');
+};
+
+/**
+ * 读取文本记录
+ */
+const readTextRecords = (): any[] => {
+  const recordsPath = getTextRecordsPath();
+  if (!fs.existsSync(recordsPath)) {
+    return [];
+  }
+  try {
+    const data = JSON.parse(fs.readFileSync(recordsPath, 'utf-8'));
+    return data.records || [];
+  } catch (error) {
+    return [];
+  }
+};
+
+/**
+ * 保存文本记录
+ */
+const saveTextRecords = (records: any[]): void => {
+  const recordsPath = getTextRecordsPath();
+  fs.writeFileSync(recordsPath, JSON.stringify({
+    records,
+    version: '1.0'
+  }, null, 2));
+};
+
+// 获取文本记录列表
+router.get('/text-records', async (req, res) => {
+  try {
+    const records = readTextRecords();
+    res.json({ success: true, records });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to get text records' });
+  }
+});
+
+// 创建文本记录
+router.post('/text-records', async (req, res) => {
+  try {
+    const { displayName, content } = req.body;
+
+    if (!displayName || !content) {
+      return res.status(400).json({ success: false, error: 'Missing required fields' });
+    }
+
+    const records = readTextRecords();
+    const now = new Date().toISOString();
+    const id = `text_${Date.now()}`;
+
+    const newRecord = {
+      id,
+      name: id,
+      displayName: displayName.trim(),
+      type: 'text',
+      content: content.trim(),
+      size: content.length,
+      createdTime: now,
+      modifiedTime: now
+    };
+
+    records.push(newRecord);
+    saveTextRecords(records);
+
+    res.json({ success: true, record: newRecord });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to create text record' });
+  }
+});
+
+// 更新文本记录
+router.put('/text-records/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { displayName, content } = req.body;
+
+    const records = readTextRecords();
+    const index = records.findIndex(r => r.id === id);
+
+    if (index === -1) {
+      return res.status(404).json({ success: false, error: 'Record not found' });
+    }
+
+    records[index] = {
+      ...records[index],
+      displayName: displayName?.trim() || records[index].displayName,
+      content: content?.trim() || records[index].content,
+      size: (content?.trim() || records[index].content).length,
+      modifiedTime: new Date().toISOString()
+    };
+
+    saveTextRecords(records);
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to update text record' });
+  }
+});
+
+// 删除文本记录
+router.delete('/text-records/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const records = readTextRecords();
+    const index = records.findIndex(r => r.id === id);
+
+    if (index === -1) {
+      return res.status(404).json({ success: false, error: 'Record not found' });
+    }
+
+    records.splice(index, 1);
+    saveTextRecords(records);
+
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to delete text record' });
   }
 });
 

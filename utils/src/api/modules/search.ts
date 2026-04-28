@@ -27,9 +27,9 @@ export const searchApi = {
   ): Promise<SearchResult> {
     return request(
       {
-        path: '/api/search/files',
-        method: 'POST',
-        body: { query, page, pageSize, options }
+        path: '/api/files/search',
+        method: 'GET',
+        params: { query, page: String(page), pageSize: String(pageSize), ...options }
       },
       { channel: 'searchFiles', args: [query, page, pageSize, options] }
     )
@@ -48,9 +48,9 @@ export const searchApi = {
   ): Promise<{ results: ContentSearchResult[]; totalPages: number }> {
     return request(
       {
-        path: '/api/search/content',
-        method: 'POST',
-        body: { keyword, page, pageSize }
+        path: '/api/files/search-content',
+        method: 'GET',
+        params: { keyword, page: String(page), pageSize: String(pageSize) }
       },
       { channel: 'searchFileContent', args: [keyword, page, pageSize] }
     )
@@ -83,7 +83,7 @@ export const searchApi = {
   async startIndexing(drives: string[]): Promise<{ success: boolean }> {
     return request(
       {
-        path: '/api/index/start',
+        path: '/api/files/index/start',
         method: 'POST',
         body: { drives }
       },
@@ -96,7 +96,7 @@ export const searchApi = {
    */
   async stopIndexing(): Promise<{ success: boolean }> {
     return request(
-      { path: '/api/index/stop', method: 'POST' },
+      { path: '/api/files/index/stop', method: 'POST' },
       { channel: 'stopIndex' }
     )
   },
@@ -106,7 +106,7 @@ export const searchApi = {
    */
   async getIndexingProgress(): Promise<IndexProgress> {
     return request(
-      { path: '/api/index/progress' },
+      { path: '/api/files/index/progress' },
       { channel: 'getIndexingProgress' }
     )
   },
@@ -116,7 +116,7 @@ export const searchApi = {
    */
   async getContentIndexStats(): Promise<ContentIndexStats> {
     return request(
-      { path: '/api/index/content-stats' },
+      { path: '/api/files/content-stats' },
       { channel: 'getContentIndexStats' }
     )
   },
@@ -163,5 +163,34 @@ export const searchApi = {
       { path: `/api/files/search/history/${id}`, method: 'DELETE' },
       { channel: 'removeSearchHistory', args: [id] }
     )
+  },
+
+  /**
+   * 强制重新索引
+   * 清除所有数据并重新开始索引
+   * @param drives - 驱动器列表
+   */
+  async forceReindex(drives: string[]): Promise<{ success: boolean }> {
+    return request(
+      {
+        path: '/api/files/force-reindex',
+        method: 'POST',
+        body: { drives }
+      }
+    )
+  },
+
+  /**
+   * 搜索文件（别名，兼容旧代码）
+   */
+  async search(params: any): Promise<any> {
+    return this.searchFiles(params.query, params.page, params.pageSize, params)
+  },
+
+  /**
+   * 搜索文件内容（别名，兼容旧代码）
+   */
+  async searchContent(params: { query: string; page: number; pageSize: number }): Promise<any> {
+    return this.searchFileContent(params.query, params.page, params.pageSize)
   }
 }

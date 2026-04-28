@@ -403,6 +403,7 @@ import {ref, computed, onMounted, onUnmounted, inject, watch} from 'vue'
 import {useConfigStore, type Config} from '@/stores/config'
 import {DIALOG_WIDTH_MEDIUM} from '@/constants/dialog'
 import DatabaseConfigDialog from '@/components/DatabaseConfigDialog/index.vue'
+import {useIndexingStore} from '@/stores/indexing'
 
 const showSnackbar = inject('showSnackbar') as (message: string, type?: 'success' | 'error' | 'warning' | 'info') => void
 
@@ -427,8 +428,32 @@ const enableSchedule = ref(false)
 const showConfigDialog = ref(false)
 const showForceReindexDialog = ref(false)
 const showFileOpenConfigDialog = ref(false)
-const indexing = ref(false)
-const totalFiles = ref(0)
+
+/**
+ * 使用全局索引进度 Store
+ */
+const indexingStore = useIndexingStore()
+
+/**
+ * 索引状态 - 从全局 Store 获取
+ */
+const indexing = computed(() => indexingStore.isIndexing)
+
+/**
+ * 文件总数
+ */
+const totalFiles = computed(() => indexingStore.totalFiles)
+
+/**
+ * 索引进度 - 从全局 Store 获取
+ */
+const indexProgress = computed(() => ({
+  show: indexingStore.isIndexing,
+  percentage: indexingStore.progress,
+  currentFile: indexingStore.currentFile,
+  totalFiles: indexingStore.totalFiles,
+  currentPath: indexingStore.currentPath
+}))
 
 /**
  * 文件打开方式配置接口
@@ -453,22 +478,6 @@ const internalViewerOptions = [
   {title: 'DOCX查看器', value: 'docx'},
   {title: '媒体播放器', value: 'media'}
 ]
-
-/**
- * 索引进度
- */
-const indexProgress = ref({
-  show: false,
-  percentage: 0,
-  currentFile: 0,
-  totalFiles: 0,
-  currentPath: ''
-})
-
-/**
- * 轮询定时器
- */
-let progressInterval: ReturnType<typeof setInterval> | null = null
 
 const scheduleOptions = [
   {title: '每天凌晨 2 点', value: '0 2 * * *'},
@@ -679,11 +688,9 @@ onUnmounted(() => {
  */
 async function checkIndexingStatus() {
   try {
-    const progress = await window.electronAPI.getIndexingProgress()
-    if (progress.isIndexing) {
-      indexing.value = true
-      indexProgress.value.show = true
-      startProgressPolling()
+    const progress = await indexingStore.checkStatus()
+    if (progress?.isIndexing) {
+      indexingStore.startPolling()
     }
   } catch (error) {
     console.error('Check indexing status failed:', error)
@@ -691,83 +698,15 @@ async function checkIndexingStatus() {
 }
 
 /**
- * 开始轮询进度
- */
-function startProgressPolling() {
-  if (progressInterval) {
-    clearInterval(progressInterval)
-  }
-
-  progressInterval = setInterval(async () => {
-    try {
-      const progress = await window.electronAPI.getIndexingProgress()
-      console.log('[Settings] 索引进度:', progress)
-
-      indexProgress.value = {
-        show: true,
-        percentage: progress.progress * 100,
-        currentFile: progress.currentFile,
-        totalFiles: progress.totalFiles,
-        currentPath: progress.currentPath
-      }
-
-      // 如果索引完成或已停止
-      if (!progress.isIndexing) {
-        stopProgressPolling()
-        indexing.value = false
-
-        // 只有在有实际进度时才显示完成提示（进度 >= 99.9% 视为完成）
-        if (progress.totalFiles > 0 && progress.progress >= 0.999) {
-          indexProgress.value.show = false
-          totalFiles.value = progress.totalFiles
-          config.value.indexing.lastIndexed = new Date().toISOString()
-          await saveSettings()
-          showSnackbar(`索引完成！共索引 ${progress.totalFiles} 个文件`, 'success')
-        }
-      }
-    } catch (error) {
-      console.error('Poll progress error:', error)
-      // 发生错误时停止轮询，但不显示错误提示（可能是索引已完成）
-      stopProgressPolling()
-      indexing.value = false
-      // 只有在索引过程中发生错误时才显示错误提示
-      if (indexProgress.value.percentage < 100) {
-        showSnackbar('索引进度获取失败', 'error')
-      }
-    }
-  }, 500) // 每 500ms 轮询一次
-}
-
-/**
- * 停止轮询
- */
-function stopProgressPolling() {
-  if (progressInterval) {
-    clearInterval(progressInterval)
-    progressInterval = null
-  }
-}
-
-/**
  * 开始索引
  */
 async function startIndex() {
-  indexing.value = true
-  indexProgress.value.show = true
-  indexProgress.value.percentage = 0
-
   try {
     const drives = await getAvailableDrives()
     console.log('[Settings] 开始索引，驱动器:', drives)
-    await window.electronAPI.startIndex(drives)
-
-    // 启动轮询
-    startProgressPolling()
+    await indexingStore.startIndexing(drives)
   } catch (error) {
     console.error('Start index failed:', error)
-    indexing.value = false
-    indexProgress.value.show = false
-    stopProgressPolling()
     showSnackbar('启动索引失败：' + (error as Error).message, 'error')
   }
 }
@@ -777,10 +716,7 @@ async function startIndex() {
  */
 async function stopIndex() {
   try {
-    await window.electronAPI.stopIndex()
-    indexing.value = false
-    indexProgress.value.show = false
-    stopProgressPolling()
+    await indexingStore.stopIndexing()
     console.log('[Settings] 索引已停止')
     showSnackbar('索引已停止', 'info')
   } catch (error) {
@@ -794,40 +730,19 @@ async function stopIndex() {
  */
 async function forceReindex() {
   showForceReindexDialog.value = false
-  indexing.value = true
-  indexProgress.value.show = true
-  indexProgress.value.percentage = 0
 
   try {
     const drives = await getAvailableDrives()
     console.log('[Settings] 强制重新索引，驱动器:', drives)
 
-    // 调用强制重新索引 API
-    const response = await fetch('http://localhost:3000/api/files/force-reindex', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({drives})
-    })
-
-    if (!response.ok) {
-      const error = await response.json()
-      throw new Error(error.error || '强制重新索引失败')
-    }
+    await indexingStore.forceReindex(drives)
 
     showSnackbar('强制重新索引已启动，正在清除旧数据...', 'info')
 
     // 重置 sessionStorage 中的索引完成标记
     sessionStorage.removeItem('hasShownIndexComplete')
-
-    // 启动轮询
-    startProgressPolling()
   } catch (error) {
     console.error('Force reindex failed:', error)
-    indexing.value = false
-    indexProgress.value.show = false
-    stopProgressPolling()
     showSnackbar('强制重新索引失败：' + (error as Error).message, 'error')
   }
 }
@@ -875,12 +790,8 @@ async function getAvailableDrives(): Promise<string[]> {
  */
 async function loadFileCount() {
   try {
-    const response = await fetch('http://localhost:3000/api/files/counts')
-    if (response.ok) {
-      const counts = await response.json()
-      totalFiles.value = counts.all || 0
-      console.log('[Settings] 文件总数:', totalFiles.value)
-    }
+    await indexingStore.refreshFileCounts()
+    console.log('[Settings] 文件总数:', indexingStore.totalFiles)
   } catch (error) {
     console.error('[Settings] 获取文件总数失败:', error)
   }
